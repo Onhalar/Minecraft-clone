@@ -15,9 +15,9 @@
 Chunk chunk;
 
 void renderSetup() {
-    chunk.blockData[0u][1u][0u] = Block(0u, BlockType::solid);
-    chunk.blockData[0u][1u][1u] = Block(0u, BlockType::solid);
-    chunk.blockData[0u][0u][0u] = Block(0u, BlockType::solid);
+    chunk.blockData[0u][1u][0u] = Block(0u);
+    chunk.blockData[0u][1u][1u] = Block(0u);
+    chunk.blockData[0u][0u][0u] = Block(0u);
 
     chunk.bakeChunk();
     chunk.generateIntermediateData();

@@ -23,7 +23,7 @@ class Camera {
         glm::mat4 viewMatrix = glm::mat4(1.0f);
 
         glm::vec3 position;
-        glm::vec3 orientation = glm::vec3(0.0f, -1.0f, 0.0f);
+        glm::vec3 orientation = glm::vec3(0.0f, 1.0f, 0.0f);
         const glm::vec3 UP = glm::vec3(0.0f, 0.0f, 1.0f);
 
         float cameraSpeed = 12.5f;

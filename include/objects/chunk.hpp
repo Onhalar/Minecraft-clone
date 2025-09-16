@@ -32,6 +32,7 @@ struct Block {
     void* acessPointer = nullptr; // here to access possible visibleBlock entries
 
     Block(): textureSheeetID(0u), type(BlockType::air) {}
+    Block(unsigned short int textureSheeetID): textureSheeetID(textureSheeetID), type(BlockType::solid) {}
     Block(unsigned short int textureSheeetID, BlockType type): textureSheeetID(textureSheeetID), type(type) {}
 };
 
