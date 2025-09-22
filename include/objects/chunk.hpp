@@ -1,6 +1,7 @@
 #ifndef CHUNK_MANAGER_HEADER
 #define CHUNK_MANAGER_HEADER
 
+#include <stdexcept>
 #include <types.hpp>
 #include <glm/glm.hpp>
 #include <mesh.hpp>
@@ -47,6 +48,8 @@ struct visibleBlock {
     }
 }; 
 
+using BlockData = /*X*/std::array</*Y*/std::array<std::array</*Z*/Block, CHUNK_HEIGHT>, CHUNK_WIDTH>, CHUNK_WIDTH>;
+
 struct Chunk {
     private:
         void updateFlag(Block* block, const unsigned char& flag, std::array<unsigned short int, 3> localPosition) {
@@ -62,8 +65,10 @@ struct Chunk {
             }
         }
 
-        bool isBlock(const unsigned char& x, const unsigned char& y, const unsigned int z) {
+        // ToDo: add surrounding chunk check.
+        bool isBlock(const unsigned char& x, const unsigned char& y, const unsigned short& z, const bool& checkOnlyExists = false, const bool& checkSurroundingChunks = false ) {
             if (x >= CHUNK_WIDTH || y >= CHUNK_WIDTH || z >= CHUNK_HEIGHT) { return false; }
+            if (checkOnlyExists) { return true; }
 
             if (blockData[x][y][z].type != BlockType::air) { return true; }
             return false;
@@ -86,9 +91,49 @@ struct Chunk {
             }
         }
 
+        // updates the intermediate data of a single block; Use ignore flags to avoid unecesery checks or force flags which overpower ignore flags
+        void updateBlockMeshFlags(const unsigned char& x, const unsigned char& y, const unsigned short& z, const unsigned char& ignoreFlags = 0u, const unsigned char& forceFlags = 0u) {
+            if (blockData[x][y][z].type == BlockType::air) { return; }
+            if (blockData[x][y][z].acessPointer) {
+                if (((visibleBlock*)blockData[x][y][z].acessPointer)->flags) {
+                    ((visibleBlock*)blockData[x][y][z].acessPointer)->flags = 0u;
+                }
+            }
+
+            // above
+            if (!(ignoreFlags & blockRenderFlag::RENDER_TOP) | forceFlags & blockRenderFlag::RENDER_TOP) {
+                if (!isBlock(x, y, z + 1)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_TOP, {x, y, z}); }
+            }
+
+            // below
+            if (!(ignoreFlags & blockRenderFlag::RENDER_BOTTOM) | forceFlags & blockRenderFlag::RENDER_BOTTOM) {
+                if (!isBlock(x, y, z - 1) || z == 0 /* fixes underflow */) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_BOTTOM, {x, y, z}); }
+            }
+
+            // front
+            if (!(ignoreFlags & blockRenderFlag::RENDER_FRONT) | forceFlags & blockRenderFlag::RENDER_FRONT) {
+                if (!isBlock(x, y - 1, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_FRONT, {x, y, z}); }
+            }
+
+            // back
+            if (!(ignoreFlags & blockRenderFlag::RENDER_BACK) | forceFlags & blockRenderFlag::RENDER_BACK) {
+                if (!isBlock(x, y + 1, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_BACK, {x, y, z}); }
+            }
+
+            // left
+            if (!(ignoreFlags & blockRenderFlag::RENDER_LEFT) | forceFlags & blockRenderFlag::RENDER_LEFT) {
+                if (!isBlock(x - 1, y, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_LEFT, {x, y, z}); }
+            }
+
+            // right
+            if (!(ignoreFlags & blockRenderFlag::RENDER_RIGHT) | forceFlags & blockRenderFlag::RENDER_RIGHT) {
+                if (!isBlock(x + 1, y, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_RIGHT, {x, y, z}); }
+            }
+        }
+
     public:
         glm::ivec2 position = {0u, 0u}; 
-        /*X*/std::array</*Y*/std::array<std::array</*Z*/Block, CHUNK_HEIGHT>, CHUNK_WIDTH>, CHUNK_WIDTH> blockData;
+        BlockData blockData;
         mesh::Mesh* mesh = nullptr;
         std::vector<visibleBlock> visibleBlockData;
         bool layerBlockPresence[CHUNK_HEIGHT]; // if a block is present in a layer
@@ -122,27 +167,19 @@ struct Chunk {
 
                 for (unsigned char x = 0; x < CHUNK_WIDTH; ++x) {
                     for (unsigned char y = 0; y < CHUNK_WIDTH; ++y) {
-                        if (blockData[x][y][z].type == BlockType::air) { continue; }
-
-                        // above
-                        if (!isBlock(x, y, z + 1)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_TOP, {x, y, z}); }
-
-                        // below
-                        if (!isBlock(x, y, z - 1) || z == 0 /* fixes underflow */) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_BOTTOM, {x, y, z}); }
-
-                        // front
-                        if (!isBlock(x, y - 1, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_FRONT, {x, y, z}); }
-
-                        // back
-                        if (!isBlock(x, y + 1, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_BACK, {x, y, z}); }
-
-                        // left
-                        if (!isBlock(x - 1, y, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_LEFT, {x, y, z}); }
-
-                        // right
-                        if (!isBlock(x + 1, y, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_RIGHT, {x, y, z}); }
+                        updateBlockMeshFlags(x, y, z);
                     }
                 }
+            }
+        }
+
+        // 
+        void updateIntermediateData(const unsigned char& x, const unsigned char& y, const unsigned int& z, const bool& ignoreBadCoord = true) {
+            if (!isBlock(x, y, z)) {
+                if (ignoreBadCoord) { return; }
+                else { throw std::invalid_argument("ChunkUpdate: Cannot update non-existant block."); }
+                
+                // ToDo: finsish this function
             }
         }
 
