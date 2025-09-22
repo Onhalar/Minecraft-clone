@@ -101,32 +101,32 @@ struct Chunk {
             }
 
             // above
-            if (!(ignoreFlags & blockRenderFlag::RENDER_TOP) | forceFlags & blockRenderFlag::RENDER_TOP) {
+            if (!(ignoreFlags & blockRenderFlag::RENDER_TOP) | (forceFlags & blockRenderFlag::RENDER_TOP)) {
                 if (!isBlock(x, y, z + 1)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_TOP, {x, y, z}); }
             }
 
             // below
-            if (!(ignoreFlags & blockRenderFlag::RENDER_BOTTOM) | forceFlags & blockRenderFlag::RENDER_BOTTOM) {
+            if (!(ignoreFlags & blockRenderFlag::RENDER_BOTTOM) | (forceFlags & blockRenderFlag::RENDER_BOTTOM)) {
                 if (!isBlock(x, y, z - 1) || z == 0 /* fixes underflow */) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_BOTTOM, {x, y, z}); }
             }
 
             // front
-            if (!(ignoreFlags & blockRenderFlag::RENDER_FRONT) | forceFlags & blockRenderFlag::RENDER_FRONT) {
+            if (!(ignoreFlags & blockRenderFlag::RENDER_FRONT) | (forceFlags & blockRenderFlag::RENDER_FRONT)) {
                 if (!isBlock(x, y - 1, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_FRONT, {x, y, z}); }
             }
 
             // back
-            if (!(ignoreFlags & blockRenderFlag::RENDER_BACK) | forceFlags & blockRenderFlag::RENDER_BACK) {
+            if (!(ignoreFlags & blockRenderFlag::RENDER_BACK) | (forceFlags & blockRenderFlag::RENDER_BACK)) {
                 if (!isBlock(x, y + 1, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_BACK, {x, y, z}); }
             }
 
             // left
-            if (!(ignoreFlags & blockRenderFlag::RENDER_LEFT) | forceFlags & blockRenderFlag::RENDER_LEFT) {
+            if (!(ignoreFlags & blockRenderFlag::RENDER_LEFT) | (forceFlags & blockRenderFlag::RENDER_LEFT)) {
                 if (!isBlock(x - 1, y, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_LEFT, {x, y, z}); }
             }
 
             // right
-            if (!(ignoreFlags & blockRenderFlag::RENDER_RIGHT) | forceFlags & blockRenderFlag::RENDER_RIGHT) {
+            if (!(ignoreFlags & blockRenderFlag::RENDER_RIGHT) | (forceFlags & blockRenderFlag::RENDER_RIGHT)) {
                 if (!isBlock(x + 1, y, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_RIGHT, {x, y, z}); }
             }
         }
