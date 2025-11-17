@@ -18,47 +18,87 @@ namespace mesh {
             VAO* vao = nullptr;
             VBO* vboVertices = nullptr;
             VBO* vboColors = nullptr;
+            VBO* vboUVs = nullptr;
             EBO* ebo = nullptr;
 
             void clearBuffers() {
                 if (vao) { delete vao; vao = nullptr; }
                 if (vboVertices) { delete vboVertices; vboVertices = nullptr; }
                 if (vboColors) { delete vboColors; vboColors = nullptr; }
+                if (vboUVs) { delete vboUVs; vboUVs = nullptr; }
                 if (ebo) { delete ebo; ebo = nullptr; }
             }
         public:
             std::vector<GLfloat> vertices;
             std::vector<GLuint> indices;
+            std::vector<GLfloat> UVs;
 
             Mesh() {}
             Mesh(const Mesh& master): vertices(master.vertices), indices(master.indices) {}
             Mesh(const std::vector<GLfloat>& vertices, const std::vector<GLuint>& indices): vertices(vertices), indices(indices) {}
+            Mesh(const std::vector<GLfloat>& vertices, const std::vector<GLuint>& indices, const std::vector<GLfloat> Uvs): vertices(vertices), indices(indices), UVs(Uvs) {}
             ~Mesh() {
                 clearBuffers();
 
                 vertices.clear();
                 indices.clear();
+                UVs.clear();
+
             }
 
-            void buffer() {
-                if (vao || vboVertices || vboColors || ebo) { clearBuffers(); }
-                if (vertices.empty() || indices.empty()) {
-                    throw std::invalid_argument("Mesh: All mesh data must be filled.");
-                }
+            bool empty() { return indices.empty() || vertices.empty() || UVs.empty(); }
 
-                vao = new VAO();
-                vao->bind();
+            // merges another mesh into the current one
+            void merge(const Mesh& meshToMerge) {
+                indices.reserve(indices.size() + meshToMerge.indices.size()); 
+                vertices.reserve(vertices.size() + meshToMerge.vertices.size());
+                UVs.reserve(UVs.size() + meshToMerge.UVs.size());
 
-                vboVertices = new VBO(vertices.data(), vertices.size() * sizeof(GLfloat));
-                vao->linkAttrib(*vboVertices, 0, 3, GL_FLOAT, 3 * sizeof(GLfloat), (void*)0);
+                size_t oldVertexSize = vertices.size() / 3;
+                size_t oldIndicesSize = indices.size();
 
-                ebo = new EBO(indices.data(), indices.size() * sizeof(GLuint));
+                indices.insert(indices.end(), meshToMerge.indices.begin(), meshToMerge.indices.end());
+                vertices.insert(vertices.end(), meshToMerge.vertices.begin(), meshToMerge.vertices.end());
+                UVs.insert(UVs.end(), meshToMerge.UVs.begin(), meshToMerge.UVs.end());
 
-                vao->unbind();
-                vboVertices->unbind();
-                vboColors->unbind();
-                ebo->unbind();
+                for (size_t i = oldIndicesSize; i < indices.size(); ++i) { indices[i] += oldVertexSize; }
             }
+
+            void merge(const Mesh* meshToMerge, const bool& destroy = false) {
+                merge(*meshToMerge);
+                if (destroy) { delete meshToMerge; }
+            }
+
+        void buffer() {
+            if (vao || vboVertices || vboColors || vboUVs || ebo) { clearBuffers(); }
+            if (vertices.empty() || indices.empty()) {
+                throw std::invalid_argument("Mesh: All mesh data must be filled.");
+            }
+            
+            vao = new VAO();
+            vao->bind();
+            
+            // Vertex positions (attribute 0)
+            vboVertices = new VBO(vertices.data(), vertices.size() * sizeof(GLfloat));
+            vao->linkAttrib(*vboVertices, 0, 3, GL_FLOAT, 3 * sizeof(GLfloat), (void*)0);
+            
+            // UVs (attribute 1) - only if UV data exists
+            if (UVs.empty()) {
+                static std::vector<GLfloat> defaultUVs = {0.0, 0.0};
+
+                for (int i = 0; i < vertices.size() / (3); ++i) { UVs.insert(UVs.end(), defaultUVs.begin(), defaultUVs.end()); }
+            }
+            vboUVs = new VBO(UVs.data(), UVs.size() * sizeof(GLfloat));
+            vao->linkAttrib(*vboUVs, 1, 2, GL_FLOAT, 2 * sizeof(GLfloat), (void*)0);
+            
+            ebo = new EBO(indices.data(), indices.size() * sizeof(GLuint));
+            
+            vao->unbind();
+            vboVertices->unbind();
+            vboUVs->unbind();
+            if (vboColors) { vboColors->unbind(); }
+            ebo->unbind();
+        }
 
             void render(Shader* shader) {
                 
@@ -142,6 +182,12 @@ namespace mesh {
                     {
                         0, 1, 2,
                         2, 3, 0
+                    },
+                    {
+                        0.0f, 0.0f,  // 0 - bottom left
+                        1.0f, 0.0f,  // 1 - bottom right
+                        1.0f, 1.0f,  // 2 - top right
+                        0.0f, 1.0f   // 3 - top left
                     }
                 };
                 
@@ -155,6 +201,12 @@ namespace mesh {
                     {
                         0, 1, 2,
                         2, 3, 0
+                    },
+                    {
+                        0.0f, 0.0f,  // 0 - bottom right
+                        1.0f, 0.0f,  // 1 - bottom left
+                        1.0f, 1.0f,  // 2 - top left
+                        0.0f, 1.0f   // 3 - top right
                     }
                 };
                 
@@ -168,6 +220,12 @@ namespace mesh {
                     {
                         0, 1, 2,
                         2, 3, 0
+                    },
+                    {
+                        0.0f, 0.0f,  // 0 - bottom back
+                        1.0f, 0.0f,  // 1 - bottom front
+                        1.0f, 1.0f,  // 2 - top front
+                        0.0f, 1.0f   // 3 - top back
                     }
                 };
                 
@@ -181,6 +239,12 @@ namespace mesh {
                     {
                         0, 1, 2,
                         2, 3, 0
+                    },
+                    {
+                        0.0f, 0.0f,  // 0 - bottom front
+                        1.0f, 0.0f,  // 1 - bottom back
+                        1.0f, 1.0f,  // 2 - top back
+                        0.0f, 1.0f   // 3 - top front
                     }
                 };
                 
@@ -194,6 +258,12 @@ namespace mesh {
                     {
                         0, 1, 2,
                         2, 3, 0
+                    },
+                    {
+                        0.0f, 0.0f,  // 0 - front left
+                        1.0f, 0.0f,  // 1 - front right
+                        1.0f, 1.0f,  // 2 - back right
+                        0.0f, 1.0f   // 3 - back left
                     }
                 };
                 
@@ -207,6 +277,12 @@ namespace mesh {
                     {
                         0, 1, 2,
                         2, 3, 0
+                    },
+                    {
+                        0.0f, 0.0f,  // 0 - back left
+                        1.0f, 0.0f,  // 1 - back right
+                        1.0f, 1.0f,  // 2 - front right
+                        0.0f, 1.0f   // 3 - front left
                     }
                 };
         };

@@ -2,7 +2,6 @@
 #define FBO_CLASS_HEADER
 
 #include <glad/glad.h>
-#include <vector>
 #include <VAO.hpp>
 #include <VBO.hpp>
 #include <EBO.hpp>

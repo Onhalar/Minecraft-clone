@@ -14,6 +14,8 @@ inline int minWindowHeight = 250;
 inline int defaultWindowWidth = 600;
 inline int defaultWindowHeight = 500;
 
+inline unsigned short blockTextureWidth = 16; // px - pixel widht of a block in texture atlas
+
 inline std::string windowName = "Minecraft Clone";
 
 inline std::filesystem::path iconPath("res/img/icon.png");

@@ -1,6 +1,7 @@
 #version 330 core
 
 in vec3 currentPosition;
+in vec2 texturePosition;
 
 out vec4 FragColor;
 
