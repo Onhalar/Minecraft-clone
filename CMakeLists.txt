@@ -12,9 +12,6 @@ add_executable(
 
     # dependencies
     dependencies/glad.c
-
-    # haeder definitions
-    include/objects/chunk.cpp
 )
 
 target_compile_features(MinecraftClone PRIVATE cxx_std_20)

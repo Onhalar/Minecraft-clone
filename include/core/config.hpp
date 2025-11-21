@@ -22,6 +22,8 @@ inline std::filesystem::path iconPath("res/img/icon.png");
 
 inline Color backgroundColor("#1a2d3f");
 
+inline std::filesystem::path textureSheetPath = "res/img/atlas.png";
+
 // RENDER
 inline int VSync = 1;
 inline int targetFrameRate = 60;

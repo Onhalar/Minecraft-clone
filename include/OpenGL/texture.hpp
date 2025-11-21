@@ -5,17 +5,23 @@
 
 #include <shader.hpp>
 
+#ifndef STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+#endif
+
 class Texture {
     public:
         GLuint ID;
         GLenum type;
+        int widthImg, heightImg;
 
         Texture(const char* image, GLenum textureType, GLenum slot, GLenum format, GLenum pixelType) {
-            // Assigns the type of the texture ot the texture object
+            // Assigns the type of the texture to the texture object
             type = textureType;
 
             // Stores the width, height, and the number of color channels of the image
-            int widthImg, heightImg, numColCh;
+            int numColCh;
             // Flips the image so it appears right side up
             stbi_set_flip_vertically_on_load(true);
             // Reads the image from a file and stores it in bytes
@@ -28,19 +34,18 @@ class Texture {
             glBindTexture(textureType, ID);
 
             // Configures the type of algorithm that is used to make the image smaller or bigger
-            glTexParameteri(textureType, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+            // Using GL_NEAREST for pixel-perfect rendering (good for texture atlases and pixel art)
+            glTexParameteri(textureType, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             glTexParameteri(textureType, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-            // Configures the way the texture repeats (if it does at all)
-            glTexParameteri(textureType, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(textureType, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-            // Extra lines in case you choose to use GL_CLAMP_TO_BORDER
-            // float flatColor[] = {1.0f, 1.0f, 1.0f, 1.0f};
-            // glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, flatColor);
+            // Configures the way the texture repeats
+            // Using GL_CLAMP_TO_EDGE to prevent bleeding between atlas regions
+            glTexParameteri(textureType, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(textureType, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
             // Assigns the image to the OpenGL Texture object
-            glTexImage2D(textureType, 0, GL_RGBA, widthImg, heightImg, 0, format, pixelType, bytes);
+            // Fixed: internal format now matches the data format
+            glTexImage2D(textureType, 0, format, widthImg, heightImg, 0, format, pixelType, bytes);
             // Generates MipMaps
             glGenerateMipmap(textureType);
 

@@ -1,3 +1,4 @@
+#include "texture.hpp"
 #include <config.hpp>
 #include <types.hpp>
 #include <core.hpp>
@@ -66,4 +67,8 @@ void setupShaderMetrices(Shader* shader) {
 void APIENTRY MessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
     GLsizei length, const GLchar *message, const void *userParam) {
     std::cout << formatError("OpenGL Debug") << ": " << colorText(message, ANSII_YELLOW) << std::endl;
+}
+
+void setupTextureSheet() {
+    mainTextureAtlas = new Texture(projectPath(textureSheetPath).c_str(), GL_TEXTURE_2D, GL_TEXTURE0, GL_RGBA, GL_UNSIGNED_BYTE);
 }

@@ -12,6 +12,7 @@
 #include <filesystem>
 
 #include "camera.hpp"
+#include "chunk.hpp"
 #include "setup/setupRender.cpp"
 
 #include "render.cpp"
@@ -128,6 +129,8 @@ void setupOpenGL() {
 
     setupShaders();
 
+    setupTextureSheet();
+
     glfwSwapInterval(VSync);
 }
 
@@ -188,5 +191,6 @@ void mainLoop() {
 }
 
 void cleanup() {
-
+    chunkRegistry::deregisterAll();
+    if (mainTextureAtlas) { delete mainTextureAtlas; }
 }

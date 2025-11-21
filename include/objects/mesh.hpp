@@ -34,7 +34,7 @@ namespace mesh {
             std::vector<GLfloat> UVs;
 
             Mesh() {}
-            Mesh(const Mesh& master): vertices(master.vertices), indices(master.indices) {}
+            Mesh(const Mesh& master): vertices(master.vertices), indices(master.indices), UVs(master.UVs) {}
             Mesh(const std::vector<GLfloat>& vertices, const std::vector<GLuint>& indices): vertices(vertices), indices(indices) {}
             Mesh(const std::vector<GLfloat>& vertices, const std::vector<GLuint>& indices, const std::vector<GLfloat> Uvs): vertices(vertices), indices(indices), UVs(Uvs) {}
             ~Mesh() {

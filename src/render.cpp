@@ -44,6 +44,7 @@ void renderSetup() {
 void render() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    mainTextureAtlas->bind();
     chunkRegistry::worldMesh.render(Shaders["block"]);
 
     glfwSwapBuffers(mainWindow);
