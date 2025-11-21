@@ -19,7 +19,7 @@ Chunk chunk2;
 
 void renderSetup() {
     chunk.registerChunk({0, 0});
-    chunk.blockData[0u][1u][0u] = Block(0u);
+    chunk.blockData[0u][1u][0u] = Block(1u);
     chunk.blockData[0u][1u][1u] = Block(0u);
     chunk.blockData[0u][0u][0u] = Block(0u);
 

@@ -31,7 +31,8 @@ struct Block {
 };
 
 inline std::vector<blockTexture> blockPalette = {
-    {0, 2, 1, 1, 1, 1} // ID 0 - grass
+    {0, 2, 1, 1, 1, 1}, // ID 0 - grass
+    {2, 2, 2, 2, 2, 2}  // ID 1 - dirt
 };
 
 
