@@ -1,6 +1,8 @@
 #ifndef MESH_HEADER
 #define MESH_HEADER
 
+#include "glm/ext/vector_float3.hpp"
+#include <unordered_map>
 #include <vector>
 #include <glad/glad.h>
 
@@ -10,6 +12,7 @@
 #include <VBO.hpp>
 #include <EBO.hpp>
 #include <shader.hpp>
+
 
 namespace mesh {
 
@@ -28,6 +31,37 @@ namespace mesh {
                 if (vboUVs) { delete vboUVs; vboUVs = nullptr; }
                 if (ebo) { delete ebo; ebo = nullptr; }
             }
+            struct vec3_hash {
+                std::size_t operator()(const glm::vec3& v) const {
+                    // Use std::hash for the individual components (floats)
+                    std::size_t h1 = std::hash<float>()(v.x);
+                    std::size_t h2 = std::hash<float>()(v.y);
+                    std::size_t h3 = std::hash<float>()(v.z);
+                    
+                    // Combine hashes using a popular mixing function
+                    // (Similar to the one you used for glm::ivec2)
+                    std::size_t seed = 0;
+                    
+                    // Hash combine utility:
+                    // A common pattern that effectively mixes a new hash into the seed
+                    auto hash_combine = [&](std::size_t& seed, std::size_t hash_val) {
+                        seed ^= hash_val + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+                    };
+
+                    hash_combine(seed, h1);
+                    hash_combine(seed, h2);
+                    hash_combine(seed, h3);
+                    
+                    return seed;
+                }
+            };
+            struct Vec2_hash {
+                std::size_t operator()(const glm::vec2& v) const {
+                    std::size_t h1 = std::hash<float>{}(v.x);
+                    std::size_t h2 = std::hash<float>{}(v.y);
+                    return h1 ^ (h2 << 1);
+                }
+            };
         public:
             std::vector<GLfloat> vertices;
             std::vector<GLuint> indices;
@@ -117,6 +151,60 @@ namespace mesh {
                 vertices = master.vertices;
 
                 clearBuffers();
+            }
+
+            // joins non-unique vertices.
+            void optimise() {
+                std::vector<GLfloat> newVertices = {};
+                std::vector<GLuint> newIndices = {};
+                std::vector<GLfloat> newUVs = {};
+                newIndices.reserve(indices.size());
+                
+                // Use a pair as the key to track vertex+UV combinations
+                struct VertexUV {
+                    glm::vec3 pos;
+                    glm::vec2 uv;
+                    
+                    bool operator==(const VertexUV& other) const {
+                        return pos == other.pos && uv == other.uv;
+                    }
+                };
+                
+                struct VertexUVHash {
+                    std::size_t operator()(const VertexUV& v) const {
+                        std::size_t h1 = vec3_hash{}(v.pos);
+                        std::size_t h2 = Vec2_hash{}(v.uv);
+                        return h1 ^ (h2 << 1);
+                    }
+                };
+                
+                std::unordered_map<VertexUV, GLuint, VertexUVHash> duplicateTracker;
+                
+                for (const auto& index : indices) {
+                    glm::vec3 vertex(vertices[index*3], vertices[(index*3) + 1], vertices[(index*3) + 2]);
+                    glm::vec2 UV(UVs[index*2], UVs[(index*2) + 1]);
+                    
+                    VertexUV key{vertex, UV};
+                    
+                    if (duplicateTracker.contains(key)) {
+                        newIndices.push_back(duplicateTracker[key]);
+                    }
+                    else {
+                        newVertices.push_back(vertex.x); 
+                        newVertices.push_back(vertex.y); 
+                        newVertices.push_back(vertex.z);
+                        newUVs.push_back(UV.x); 
+                        newUVs.push_back(UV.y);
+                        
+                        GLuint newIndex = (newVertices.size() / 3) - 1;
+                        duplicateTracker[key] = newIndex;
+                        newIndices.push_back(newIndex);
+                    }
+                }
+                
+                vertices = newVertices;
+                indices = newIndices;
+                UVs = newUVs;
             }
     };
 

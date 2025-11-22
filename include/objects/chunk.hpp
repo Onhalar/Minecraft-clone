@@ -149,12 +149,14 @@ class chunkRegistry {
         // the same as isChunkRegistered
         static inline auto exists = isChunkRegistered;
 
-        static mesh::Mesh stitchRegistryMesh(const bool restitchMeshes = false) {
+        static mesh::Mesh stitchRegistryMesh(const bool optimiseMesh = true, const bool restitchMeshes = false) {
             if (!worldMesh.empty()) { worldMesh = mesh::Mesh(); }
 
             for (const auto& [key, chunk] : registry) {
                 worldMesh.merge(restitchMeshes ? chunk->stitchMesh() : chunk->mesh);
             }
+
+            worldMesh.optimise();
 
             return worldMesh;
         }
@@ -283,8 +285,6 @@ inline void Chunk::addSideToMesh(const unsigned char& sideFlag, mesh::Mesh* side
     else if (sideFlag & blockRenderFlag::RENDER_RIGHT) { textureID = blockPalette[blockPaletteID].rightId; }
 
     glm::fvec4 uvData = getTextureCoordinates(textureID);
-
-    std::cout << "UV data: " << uvData.x << ", " << uvData.y << ", " << uvData.z << std::endl;
 
     for (auto i = side->UVs.begin(); i != side->UVs.end(); i += 2) {
         scaleAndApplyUVs(*i, *(i+1), uvData);

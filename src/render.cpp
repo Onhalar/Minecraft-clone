@@ -26,7 +26,7 @@ void renderSetup() {
     chunk2.registerChunk({-1, 0});
     chunk2.blockData[CHUNK_WIDTH - 1][0u][0u] = Block(0u);
 
-    chunkRegistry::stitchRegistryMesh(true);
+    chunkRegistry::stitchRegistryMesh(true, true);
 
     /*std::cout << "indicies" << std::endl;
     for (int i = 1; i <= chunk.mesh->indices.size(); ++i) {
