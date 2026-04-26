@@ -21,7 +21,12 @@ void cleanup();
 void mainLoop();
 void createWindow();
 void createWindow();
+
 void setupOpenGL();
+void setupRenderer();
+void setupTextureSheet();
+void setupShaderMetrices(Shader* shader);
+void setupShaders();
 
 int main(int argc, char **argv) {
     // attemps to extract current file location from call args
@@ -128,6 +133,8 @@ void setupOpenGL() {
     glClearColor(backgroundColor.decR , backgroundColor.decG, backgroundColor.decB, backgroundColor.a);
 
     setupShaders();
+
+    setupRenderer();
 
     setupTextureSheet();
 

@@ -2,6 +2,7 @@
 #define MAIN_CONFIG_HEADER
 
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 
@@ -29,5 +30,8 @@ inline int VSync = 1;
 inline int targetFrameRate = 60;
 inline float staticDelayFraction = 0.65f;
 inline std::chrono::nanoseconds spinDelay(375);
+
+// WORLD
+inline float worldSeed = rand();
 
 #endif // MAIN_CONFIG_HEADER

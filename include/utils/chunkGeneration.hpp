@@ -2,6 +2,8 @@
 #define CHUNK_GENERATION_HEADER
 
 #include "glm/fwd.hpp"
+#include <config.hpp>
+
 #include <chunk.hpp>
 #include <block.hpp>
 #include <biom.hpp>
@@ -65,31 +67,15 @@ namespace world {
     };
 
     // ---------------------------------------------------------------------------
-    // Generation settings - tweak these to taste
-    // ---------------------------------------------------------------------------
-    struct TerrainSettings {
-        int   octaves      = 6;       // more = more detail
-        float persistence  = 0.5f;    // how fast amplitude drops per octave
-        float lacunarity   = 2.0f;    // how fast frequency rises per octave
-        float scale        = 0.03f;   // overall zoom (smaller = smoother/larger features)
-
-        int   baseHeight   = 64;      // sea level / average terrain height
-        int   heightRange  = 40;      // max deviation above/below base
-
-        int   dirtDepth    = 3;       // how many dirt layers under grass
-    };
-
-    // ---------------------------------------------------------------------------
     // Chunk generator
     // ---------------------------------------------------------------------------
     class chunkGenerator {
         PerlinNoise     noise;
-        TerrainSettings settings;
 
         public:
             // Seed defaults to 0; pass a real seed for varied worlds
-            chunkGenerator(unsigned int seed = 0, TerrainSettings settings = TerrainSettings())
-                : noise(seed), settings(settings) {}
+            chunkGenerator(unsigned int seed = worldSeed)
+                : noise(seed) {}
 
             // Generate and register a chunk at the given chunk-space position.
             // Returns nullptr if the chunk is already registered.
@@ -105,7 +91,7 @@ namespace world {
                         float wx = chunkPosition.x * CHUNK_WIDTH + x;
                         float wy = chunkPosition.y * CHUNK_WIDTH + y;
 
-                        int surfaceZ = getSurfaceHeight(wx, wy);
+                        int surfaceZ = getSurfaceHeight(wx, wy, biom);
                         surfaceZ = std::clamp(surfaceZ, 1, CHUNK_HEIGHT - 1);
 
                         fillColumn(*chunk, x, y, surfaceZ, biom);
@@ -118,17 +104,17 @@ namespace world {
 
         private:
             // Returns the surface block Z for a given world XY column
-            int getSurfaceHeight(float wx, float wy) const {
+            int getSurfaceHeight(float wx, float wy, biom* biom) const {
                 float n = noise.fbm(
-                    wx * settings.scale,
-                    wy * settings.scale,
-                    settings.octaves,
-                    settings.persistence,
-                    settings.lacunarity
+                    wx * biom->scale,
+                    wy * biom->scale,
+                    biom->octaves,
+                    biom->persistence,
+                    biom->lacunarity
                 ); // n in [-1, 1]
 
                 // Map to [baseHeight - heightRange, baseHeight + heightRange]
-                return settings.baseHeight + static_cast<int>(n * settings.heightRange);
+                return biom->baseHeight + static_cast<int>(n * biom->heightRange);
             }
 
             // Fill a single XY column from z=0 up to surfaceZ
@@ -138,13 +124,13 @@ namespace world {
 
                     if (z == surfaceZ) {
                         blockData = biom->surfaceBlock;             // top layer: grass
-                    } else if (z >= surfaceZ - settings.dirtDepth) {
+                    } else if (z >= surfaceZ - biom->dirtDepth) {
                         blockData = biom->topLayerBlock;            // subsurface: dirt
                     } else {
                         blockData = biom->deepLayerBlock;            // deep: dirt (swap for stone when you add it)
                     }
 
-                    chunk.blockData[x][y][z] = Block(blockData, BlockType::solid);
+                    chunk.getBlock(x, y, z) = Block(blockData, BlockType::solid);
                 }
             }
     };

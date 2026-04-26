@@ -3,6 +3,7 @@
 #include "shader.hpp"
 #include <core.hpp>
 #include <config.hpp>
+#include <cstdio>
 #include <globals.hpp>
 #include <types.hpp>
 #include <debug.hpp>
@@ -16,36 +17,34 @@
 #include <VBO.hpp>
 #include <EBO.hpp>
 
-world::Chunk* chunk1;
-world::Chunk* chunk2;
+#define WORLD_WIDTH 16
+#define WORLD_LENGTH 16
+
+world::Chunk* chunks[WORLD_WIDTH * WORLD_LENGTH];
 
 void renderSetup() {
-
     world::chunkGenerator generator = world::chunkGenerator();
+    world::biom* plainsBiom = &world::biomRegistry["plains"];
 
-    chunk1 = generator.generate({0, 0}, &world::biomRegistry["plains"]);
-    chunk2 = generator.generate({0, -1}, &world::biomRegistry["plains"]);
-
-    world::chunkRegistry::stitchRegistryMesh(true, true);
-
-    /*std::cout << "indicies" << std::endl;
-    for (int i = 1; i <= chunk.mesh->indices.size(); ++i) {
-        std::cout << chunk.mesh->indices[i-1] << (i % 3 == 0 ? "\n" : " ");
+    for (unsigned int x = 0; x < WORLD_WIDTH; ++x) {
+        for (unsigned int y = 0; y < WORLD_LENGTH; ++y) {
+            chunks[x * WORLD_WIDTH + y] = generator.generate({x, y}, plainsBiom);
+            printf("Making chunk: %u, %u\n", x, y);
+        }
     }
-    std::cout << "vertices" << std::endl;
-    for (int i = 1; i <= chunk.mesh->vertices.size(); ++i) {
-        std::cout << chunk.mesh->vertices[i-1] << (i % 3 == 0 ? "\n" : " ");
-    }
-    std::cout << std::endl;*/
+
+    printf("%s", "\nMeshing... "); fflush(stdout);
+    world::chunkRegistry::uploadMeshes(true);
+    printf("%s", "done\n");
 }
-
-
 
 void render() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    static Shader* blockShader = Shaders["block"];
     mainTextureAtlas->bind();
-    world::chunkRegistry::worldMesh.render(Shaders["block"]);
+
+    chunkRenderer->render(blockShader, world::chunkRegistry::visibleChunks);
 
     glfwSwapBuffers(mainWindow);
 }

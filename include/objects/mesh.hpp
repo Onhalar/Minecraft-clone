@@ -1,266 +1,116 @@
 #ifndef MESH_HEADER
 #define MESH_HEADER
 
-#include "glm/ext/vector_float3.hpp"
-#include <unordered_map>
+#include <cstdint>
 #include <vector>
-#include <glad/glad.h>
-
+#include <unordered_map>
+#include <deque>
 #include <stdexcept>
 
-#include <VAO.hpp>
-#include <VBO.hpp>
-#include <EBO.hpp>
-#include <shader.hpp>
+#include <glad/glad.h>
+#include <glm/glm.hpp>
 
+#include <shader.hpp>
 
 namespace mesh {
 
-    class Mesh {
-        private:
-            VAO* vao = nullptr;
-            VBO* vboVertices = nullptr;
-            VBO* vboColors = nullptr;
-            VBO* vboUVs = nullptr;
-            EBO* ebo = nullptr;
-
-            void clearBuffers() {
-                if (vao) { delete vao; vao = nullptr; }
-                if (vboVertices) { delete vboVertices; vboVertices = nullptr; }
-                if (vboColors) { delete vboColors; vboColors = nullptr; }
-                if (vboUVs) { delete vboUVs; vboUVs = nullptr; }
-                if (ebo) { delete ebo; ebo = nullptr; }
-            }
-            struct vec3_hash {
-                std::size_t operator()(const glm::vec3& v) const {
-                    // Use std::hash for the individual components (floats)
-                    std::size_t h1 = std::hash<float>()(v.x);
-                    std::size_t h2 = std::hash<float>()(v.y);
-                    std::size_t h3 = std::hash<float>()(v.z);
-                    
-                    // Combine hashes using a popular mixing function
-                    // (Similar to the one you used for glm::ivec2)
-                    std::size_t seed = 0;
-                    
-                    // Hash combine utility:
-                    // A common pattern that effectively mixes a new hash into the seed
-                    auto hash_combine = [&](std::size_t& seed, std::size_t hash_val) {
-                        seed ^= hash_val + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-                    };
-
-                    hash_combine(seed, h1);
-                    hash_combine(seed, h2);
-                    hash_combine(seed, h3);
-                    
-                    return seed;
-                }
-            };
-            struct Vec2_hash {
-                std::size_t operator()(const glm::vec2& v) const {
-                    std::size_t h1 = std::hash<float>{}(v.x);
-                    std::size_t h2 = std::hash<float>{}(v.y);
-                    return h1 ^ (h2 << 1);
-                }
-            };
-        public:
-            std::vector<GLfloat> vertices;
-            std::vector<GLuint> indices;
-            std::vector<GLfloat> UVs;
-
-            Mesh() {}
-            Mesh(const Mesh& master): vertices(master.vertices), indices(master.indices), UVs(master.UVs) {}
-            Mesh(const std::vector<GLfloat>& vertices, const std::vector<GLuint>& indices): vertices(vertices), indices(indices) {}
-            Mesh(const std::vector<GLfloat>& vertices, const std::vector<GLuint>& indices, const std::vector<GLfloat> Uvs): vertices(vertices), indices(indices), UVs(Uvs) {}
-            ~Mesh() {
-                clearBuffers();
-
-                vertices.clear();
-                indices.clear();
-                UVs.clear();
-
-            }
-
-            bool empty() { return indices.empty() || vertices.empty() || UVs.empty(); }
-
-            // merges another mesh into the current one
-            void merge(const Mesh& meshToMerge) {
-                indices.reserve(indices.size() + meshToMerge.indices.size()); 
-                vertices.reserve(vertices.size() + meshToMerge.vertices.size());
-                UVs.reserve(UVs.size() + meshToMerge.UVs.size());
-
-                size_t oldVertexSize = vertices.size() / 3;
-                size_t oldIndicesSize = indices.size();
-
-                indices.insert(indices.end(), meshToMerge.indices.begin(), meshToMerge.indices.end());
-                vertices.insert(vertices.end(), meshToMerge.vertices.begin(), meshToMerge.vertices.end());
-                UVs.insert(UVs.end(), meshToMerge.UVs.begin(), meshToMerge.UVs.end());
-
-                for (size_t i = oldIndicesSize; i < indices.size(); ++i) { indices[i] += oldVertexSize; }
-            }
-
-            void merge(const Mesh* meshToMerge, const bool& destroy = false) {
-                merge(*meshToMerge);
-                if (destroy) { delete meshToMerge; }
-            }
-
-        void buffer() {
-            if (vao || vboVertices || vboColors || vboUVs || ebo) { clearBuffers(); }
-            if (vertices.empty() || indices.empty()) {
-                throw std::invalid_argument("Mesh: All mesh data must be filled.");
-            }
-            
-            vao = new VAO();
-            vao->bind();
-            
-            // Vertex positions (attribute 0)
-            vboVertices = new VBO(vertices.data(), vertices.size() * sizeof(GLfloat));
-            vao->linkAttrib(*vboVertices, 0, 3, GL_FLOAT, 3 * sizeof(GLfloat), (void*)0);
-            
-            // UVs (attribute 1) - only if UV data exists
-            if (UVs.empty()) {
-                static std::vector<GLfloat> defaultUVs = {0.0, 0.0};
-
-                for (int i = 0; i < vertices.size() / (3); ++i) { UVs.insert(UVs.end(), defaultUVs.begin(), defaultUVs.end()); }
-            }
-            vboUVs = new VBO(UVs.data(), UVs.size() * sizeof(GLfloat));
-            vao->linkAttrib(*vboUVs, 1, 2, GL_FLOAT, 2 * sizeof(GLfloat), (void*)0);
-            
-            ebo = new EBO(indices.data(), indices.size() * sizeof(GLuint));
-            
-            vao->unbind();
-            vboVertices->unbind();
-            vboUVs->unbind();
-            if (vboColors) { vboColors->unbind(); }
-            ebo->unbind();
-        }
-
-            void render(Shader* shader) {
-                
-                if (shader) { shader->activate(); }
-                else { throw std::invalid_argument("Mesh: Given shader object does not exists: nullptr");}
-
-                if (!((bool)vao & (bool)vboVertices & (bool)vboColors & (bool)ebo)) { buffer(); }
-
-                vao->bind();
-                glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0);
-                vao->unbind();
-            }
-
-            void updateData(const Mesh& master) {
-                indices = master.indices;
-                vertices = master.vertices;
-
-                clearBuffers();
-            }
-
-            // joins non-unique vertices.
-            void optimise() {
-                std::vector<GLfloat> newVertices = {};
-                std::vector<GLuint> newIndices = {};
-                std::vector<GLfloat> newUVs = {};
-                newIndices.reserve(indices.size());
-                
-                // Use a pair as the key to track vertex+UV combinations
-                struct VertexUV {
-                    glm::vec3 pos;
-                    glm::vec2 uv;
-                    
-                    bool operator==(const VertexUV& other) const {
-                        return pos == other.pos && uv == other.uv;
-                    }
-                };
-                
-                struct VertexUVHash {
-                    std::size_t operator()(const VertexUV& v) const {
-                        std::size_t h1 = vec3_hash{}(v.pos);
-                        std::size_t h2 = Vec2_hash{}(v.uv);
-                        return h1 ^ (h2 << 1);
-                    }
-                };
-                
-                std::unordered_map<VertexUV, GLuint, VertexUVHash> duplicateTracker;
-                
-                for (const auto& index : indices) {
-                    glm::vec3 vertex(vertices[index*3], vertices[(index*3) + 1], vertices[(index*3) + 2]);
-                    glm::vec2 UV(UVs[index*2], UVs[(index*2) + 1]);
-                    
-                    VertexUV key{vertex, UV};
-                    
-                    if (duplicateTracker.contains(key)) {
-                        newIndices.push_back(duplicateTracker[key]);
-                    }
-                    else {
-                        newVertices.push_back(vertex.x); 
-                        newVertices.push_back(vertex.y); 
-                        newVertices.push_back(vertex.z);
-                        newUVs.push_back(UV.x); 
-                        newUVs.push_back(UV.y);
-                        
-                        GLuint newIndex = (newVertices.size() / 3) - 1;
-                        duplicateTracker[key] = newIndex;
-                        newIndices.push_back(newIndex);
-                    }
-                }
-                
-                vertices = newVertices;
-                indices = newIndices;
-                UVs = newUVs;
-            }
+    struct meshAllocation {
+        GLint    baseVertex  = 0;
+        GLuint   firstIndex  = 0;
+        GLuint   indexCount  = 0;
+        GLuint   vertexCount = 0;
+        bool     valid       = false;
     };
 
-    class cubeDefaults {
-    public:
-        inline const static std::vector<GLfloat> vertices = {
-            // Front face
-            0.0f,  0.0f,  0.0f,  // 0 - front top left
-            1.0f,  0.0f,  0.0f,  // 1 - front top right
-            1.0f, -1.0f,  0.0f,  // 2 - front bottom right
-            0.0f, -1.0f,  0.0f,  // 3 - front bottom left
+    struct DrawCommand {
+        GLuint count;          // index count
+        GLuint instanceCount;  // always 1
+        GLuint firstIndex;
+        GLint  baseVertex;
+        GLuint baseInstance;   // always 0
+    };
 
-            // Back face
-            0.0f,  0.0f, -1.0f,  // 4 - back top left
-            1.0f,  0.0f, -1.0f,  // 5 - back top right
-            1.0f, -1.0f, -1.0f,  // 6 - back bottom right
-            0.0f, -1.0f, -1.0f   // 7 - back bottom left
-        };
+    struct meshData {
+        uint32_t meshID = 0u;
 
-        inline const static std::vector<GLuint> indices = {
-            // Front face
-            0, 1, 2,
-            2, 3, 0,
+        std::vector<GLfloat> vertices;
+        std::vector<GLuint>  indices;
+        std::vector<GLfloat> uvs;
 
-            // Right face
-            1, 5, 6,
-            6, 2, 1,
+        meshData() {}
+        meshData(std::vector<GLfloat> vertices, std::vector<GLuint> indices, std::vector<GLfloat> uvs): vertices(vertices), indices(indices), uvs(uvs) {};
 
-            // Back face
-            5, 4, 7,
-            7, 6, 5,
+        bool empty() const { return indices.empty() || vertices.empty(); }
 
-            // Left face
-            4, 0, 3,
-            3, 7, 4,
+        void merge(const meshData* const other) {
+            size_t baseVertex = vertices.size() / 3;
+            size_t baseIndex  = indices.size();
 
-            // Top face
-            4, 5, 1,
-            1, 0, 4,
+            vertices.insert(vertices.end(), other->vertices.begin(), other->vertices.end());
+            uvs.insert(uvs.end(), other->uvs.begin(), other->uvs.end());
+            indices.insert(indices.end(), other->indices.begin(), other->indices.end());
 
-            // Bottom face
-            3, 2, 6,
-            6, 7, 3
-        };
+            for (size_t i = baseIndex; i < indices.size(); ++i)
+                indices[i] += baseVertex;
+        }
 
-        static Mesh getCube() { return Mesh(vertices, indices); }
+        void clear() { vertices.clear(); uvs.clear(); indices.clear(); }
+    };
 
-        // +X -> Right
-        // -X -> Left
-        // +Y -> Back
-        // -Y -> Forward
-        // +Z -> Up
-        // -Z -> Down
-        class sides {
+    class MassRenderer {
+        public:
+            static constexpr size_t MAX_VERTICES = 8'000'000;
+            static constexpr size_t MAX_INDICES  = 16'000'000;
+            static constexpr size_t MAX_CHUNKS   = 4096;
+
+            MassRenderer() { init(); }
+            ~MassRenderer() { destroy(); }
+
+            // Upload a mesh into the shared buffer.
+            // Returns an ID used to refer to this mesh for rendering/freeing.
+            // Call from main thread only.
+            uint32_t upload(const meshData& data);
+
+            // Release a previously uploaded mesh's buffer space.
+            void free(uint32_t id);
+
+            // Issue the single indirect draw call for all visible meshes.
+            void render(Shader* shader, const std::vector<uint32_t>& visibleIDs);
+
+        private:
+            void init();
+            void destroy();
+
+            GLuint vao_         = 0;
+            GLuint vbo_         = 0;  // shared vertex positions buffer
+            GLuint ubo_         = 0;  // shared UV buffer
+            GLuint ebo_         = 0;  // shared index buffer
+            GLuint indirectBuf_ = 0;  // GL_DRAW_INDIRECT_BUFFER
+
+            struct FreeBlock { size_t offset, size; };
+            std::deque<FreeBlock>  freeVertexBlocks_;
+            std::deque<FreeBlock>  freeIndexBlocks_;
+
+            std::unordered_map<uint32_t, meshAllocation> allocations_;
+
+            uint32_t nextID_ = 1;
+
+            size_t allocVertices(size_t count);
+            size_t allocIndices(size_t count);
+            void   freeVertexBlock(size_t offset, size_t size);
+            void   freeIndexBlock(size_t offset, size_t size);
+    };
+
+
+    // -------------------------------------------------------------------------
+    // defaults
+    // -------------------------------------------------------------------------
+
+    class defaults {
+        public:
+        class Cube {
             public:
-                inline static Mesh front = {
+                inline static meshData front = {
                     {
                         -0.5f, -0.5f, -0.5f,  // 0 - front bottom left
                         0.5f, -0.5f, -0.5f,  // 1 - front bottom right
@@ -279,7 +129,7 @@ namespace mesh {
                     }
                 };
                 
-                inline static Mesh back = {
+                inline static meshData back = {
                     {
                         0.5f,  0.5f, -0.5f,  // 0 - back bottom right
                         -0.5f,  0.5f, -0.5f,  // 1 - back bottom left
@@ -298,7 +148,7 @@ namespace mesh {
                     }
                 };
                 
-                inline static Mesh left = {
+                inline static meshData left = {
                     {
                         -0.5f,  0.5f, -0.5f,  // 0 - left bottom back
                         -0.5f, -0.5f, -0.5f,  // 1 - left bottom front
@@ -317,7 +167,7 @@ namespace mesh {
                     }
                 };
                 
-                inline static Mesh right = {
+                inline static meshData right = {
                     {
                         0.5f, -0.5f, -0.5f,  // 0 - right bottom front
                         0.5f,  0.5f, -0.5f,  // 1 - right bottom back
@@ -336,7 +186,7 @@ namespace mesh {
                     }
                 };
                 
-                inline static Mesh top = {
+                inline static meshData top = {
                     {
                         -0.5f, -0.5f,  0.5f,  // 0 - top front left
                         0.5f, -0.5f,  0.5f,  // 1 - top front right
@@ -355,7 +205,7 @@ namespace mesh {
                     }
                 };
                 
-                inline static Mesh bottom = {
+                inline static meshData bottom = {
                     {
                         -0.5f,  0.5f, -0.5f,  // 0 - bottom back left
                         0.5f,  0.5f, -0.5f,  // 1 - bottom back right
@@ -375,6 +225,180 @@ namespace mesh {
                 };
         };
     };
+
+
+    // -------------------------------------------------------------------------
+    // MassRenderer implementation
+    // -------------------------------------------------------------------------
+
+    inline void MassRenderer::init() {
+        // VAO
+        glGenVertexArrays(1, &vao_);
+        glBindVertexArray(vao_);
+
+        // Vertex positions (attribute 0)
+        glGenBuffers(1, &vbo_);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+        glBufferData(GL_ARRAY_BUFFER, MAX_VERTICES * 3 * sizeof(GLfloat), nullptr, GL_DYNAMIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (void*)0);
+
+        // UVs (attribute 1) — separate buffer, same VAO
+        glGenBuffers(1, &ubo_);
+        glBindBuffer(GL_ARRAY_BUFFER, ubo_);
+        glBufferData(GL_ARRAY_BUFFER, MAX_VERTICES * 2 * sizeof(GLfloat), nullptr, GL_DYNAMIC_DRAW);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), (void*)0);
+
+        // Index buffer
+        glGenBuffers(1, &ebo_);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, MAX_INDICES * sizeof(GLuint), nullptr, GL_DYNAMIC_DRAW);
+
+        glBindVertexArray(0);
+
+        // Indirect draw buffer (not part of VAO state)
+        glGenBuffers(1, &indirectBuf_);
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, indirectBuf_);
+        glBufferData(GL_DRAW_INDIRECT_BUFFER, MAX_CHUNKS * sizeof(DrawCommand), nullptr, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+
+        // Seed free lists
+        freeVertexBlocks_.push_back({0, MAX_VERTICES});
+        freeIndexBlocks_.push_back({0, MAX_INDICES});
+    }
+
+    inline void MassRenderer::destroy() {
+        glDeleteVertexArrays(1, &vao_);
+        glDeleteBuffers(1, &vbo_);
+        glDeleteBuffers(1, &ubo_);
+        glDeleteBuffers(1, &ebo_);
+        glDeleteBuffers(1, &indirectBuf_);
+    }
+
+    inline size_t MassRenderer::allocVertices(size_t count) {
+        for (auto it = freeVertexBlocks_.begin(); it != freeVertexBlocks_.end(); ++it) {
+            if (it->size >= count) {
+                size_t offset = it->offset;
+                it->offset += count;
+                it->size   -= count;
+                if (it->size == 0) freeVertexBlocks_.erase(it);
+                return offset;
+            }
+        }
+        throw std::runtime_error("MassRenderer: vertex buffer full");
+    }
+
+    inline size_t MassRenderer::allocIndices(size_t count) {
+        for (auto it = freeIndexBlocks_.begin(); it != freeIndexBlocks_.end(); ++it) {
+            if (it->size >= count) {
+                size_t offset = it->offset;
+                it->offset += count;
+                it->size   -= count;
+                if (it->size == 0) freeIndexBlocks_.erase(it);
+                return offset;
+            }
+        }
+        throw std::runtime_error("MassRenderer: index buffer full");
+    }
+
+    inline void MassRenderer::freeVertexBlock(size_t offset, size_t size) {
+        freeVertexBlocks_.push_back({offset, size});
+        // TODO: coalesce adjacent blocks to reduce fragmentation over time
+    }
+
+    inline void MassRenderer::freeIndexBlock(size_t offset, size_t size) {
+        freeIndexBlocks_.push_back({offset, size});
+    }
+
+    inline uint32_t MassRenderer::upload(const meshData& data) {
+        size_t vertCount = data.vertices.size() / 3;
+        size_t idxCount  = data.indices.size();
+
+        size_t vertOffset = allocVertices(vertCount);
+        size_t idxOffset  = allocIndices(idxCount);
+
+        // Upload vertex positions into shared VBO
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+        glBufferSubData(GL_ARRAY_BUFFER,
+            vertOffset * 3 * sizeof(GLfloat),
+            data.vertices.size() * sizeof(GLfloat),
+            data.vertices.data());
+
+        // Upload UVs into shared UV buffer
+        glBindBuffer(GL_ARRAY_BUFFER, ubo_);
+        glBufferSubData(GL_ARRAY_BUFFER,
+            vertOffset * 2 * sizeof(GLfloat),
+            data.uvs.size() * sizeof(GLfloat),
+            data.uvs.data());
+
+        // Upload indices into shared EBO
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo_);
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER,
+            idxOffset * sizeof(GLuint),
+            data.indices.size() * sizeof(GLuint),
+            data.indices.data());
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+        uint32_t id = nextID_++;
+        allocations_[id] = {
+            (GLint)vertOffset,
+            (GLuint)idxOffset,
+            (GLuint)idxCount,
+            (GLuint)vertCount,
+            true
+        };
+
+        return id;
+    }
+
+    inline void MassRenderer::free(uint32_t id) {
+        auto it = allocations_.find(id);
+        if (it == allocations_.end()) return;
+
+        const auto& alloc = it->second;
+        freeVertexBlock(alloc.baseVertex, alloc.vertexCount);
+        freeIndexBlock(alloc.firstIndex, alloc.indexCount);
+        allocations_.erase(it);
+    }
+
+    inline void MassRenderer::render(Shader* shader, const std::vector<uint32_t>& visibleIDs) {
+        if (visibleIDs.empty()) return;
+
+        shader->activate();
+
+        // Build indirect command list from visible IDs
+        std::vector<DrawCommand> commands;
+        commands.reserve(visibleIDs.size());
+
+        for (uint32_t id : visibleIDs) {
+            auto it = allocations_.find(id);
+            if (it == allocations_.end()) continue;
+
+            const auto& a = it->second;
+            commands.push_back({
+                a.indexCount,
+                1,
+                a.firstIndex,
+                a.baseVertex,
+                0   // baseInstance — unused, always 0
+            });
+        }
+
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, indirectBuf_);
+        glBufferSubData(GL_DRAW_INDIRECT_BUFFER, 0,
+            commands.size() * sizeof(DrawCommand),
+            commands.data());
+
+        glBindVertexArray(vao_);
+        glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT,
+                                    nullptr, (GLsizei)commands.size(), 0);
+        glBindVertexArray(0);
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
+    }
+
 }
 
 #endif // MESH_HEADER

@@ -3,6 +3,7 @@
 
 #include <core.hpp>
 #include "glm/ext/vector_int2.hpp"
+#include "globals.hpp"
 #include <cstddef>
 #include <glm/glm.hpp>
 #include <types.hpp>
@@ -49,9 +50,7 @@ namespace world {
 
 
 
-    using BlockData = /*X*/std::array</*Y*/std::array<std::array</*Z*/Block, CHUNK_HEIGHT>, CHUNK_WIDTH>, CHUNK_WIDTH>;
-
-
+    using BlockData = std::array<Block, CHUNK_WIDTH * CHUNK_WIDTH * CHUNK_HEIGHT>;
 
     struct Chunk {
         private:
@@ -60,7 +59,7 @@ namespace world {
             void updateFlag(Block* block, const unsigned char flag, std::array<unsigned short, 3> localPosition);
             void scaleAndApplyVertice(const GLfloat vertX, const GLfloat vertY, const GLfloat vertZ, const std::array<unsigned short int, 3>& localPosition);
             void scaleAndApplyUVs(const GLfloat UVx, const GLfloat UVy, const glm::fvec4 UVdata);
-            void addSideToMesh(const unsigned char& sideFlag, mesh::Mesh* side, const std::array<unsigned short int, 3>& localPosition);
+            void addSideToMesh(const unsigned char& sideFlag, mesh::meshData* side, const std::array<unsigned short int, 3>& localPosition);
 
             // updates the intermediate data of a single block; Use ignore flags to avoid unecesery checks or force flags which overpower ignore flags
             void updateBlockMeshFlags(const unsigned char x, const unsigned char y, const unsigned short z, const unsigned char ignoreFlags, const unsigned char forceFlags);
@@ -68,14 +67,14 @@ namespace world {
         public:
             glm::ivec2 position = {0u, 0u}; 
             BlockData blockData;
-            mesh::Mesh* mesh = nullptr;
+            mesh::meshData* mesh = nullptr;
             std::vector<visibleBlock> visibleBlockData;
             bool layerBlockPresence[CHUNK_HEIGHT]; // if a block is present in a layer
             bool baked = false;
 
-            Chunk(glm::vec2 position): position(position) {}
-            Chunk(): position(glm::vec2(0.0f)) {}
-            Chunk(const Chunk& master): position(master.position), blockData(master.blockData), mesh(new mesh::Mesh(*master.mesh)) {}
+            Chunk(glm::vec2 position): position(position) { this->registerChunk(position); }
+            Chunk(): position(glm::vec2(0.0f)) { this->registerChunk(position); }
+            Chunk(const Chunk& master): position(master.position), blockData(master.blockData), mesh(new mesh::meshData(*master.mesh)) { this->registerChunk(position); } // overwrites the original chunk's registry
 
             ~Chunk() {
                 visibleBlockData.clear();
@@ -95,9 +94,16 @@ namespace world {
 
             // give a chunk its x, y cooridnates
             bool registerChunk(glm::ivec2);
+            void deregisterChunk();
+
+            inline Block& getBlock(unsigned char x, unsigned char y, unsigned short z) { return this->blockData[ x + (y << 4) + (z << 8)]; }
 
             // stitches the blocks in the current chunk into a single large mesh
-            mesh::Mesh* stitchMesh();
+            mesh::meshData* stitchMesh();
+
+            uint32_t uploadMesh(); // uploads mesh ONLY ON INIT
+            uint32_t reuplaodMesh(); // updates the mesh
+            
     };
 
 
@@ -106,7 +112,7 @@ namespace world {
     class chunkRegistry {
         public:
             static inline std::unordered_map<glm::ivec2, Chunk*, ivec2_hash> registry = std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>();
-            static inline mesh::Mesh worldMesh = mesh::Mesh();
+            static inline std::vector<uint32_t> visibleChunks = {};
 
             static void deregisterAll() {
                 for (auto& [key, chunk] : registry) { if (chunk) { delete chunk; chunk = nullptr; } }
@@ -138,21 +144,18 @@ namespace world {
                 return true;
             }
 
+            static void uploadMeshes(const bool stitchMeshes = false) {
+                if (stitchMeshes) { for ( const auto [position, chunk] : registry ) { chunk->stitchMesh(); } }
+
+                // TODO: make a propper is Chunk visible culler
+                for ( const auto [position, chunk] : registry ) {
+                    visibleChunks.push_back(chunk->uploadMesh());
+                }
+            }
+
             static bool isChunkRegistered(glm::ivec2 position) { return registry.find(position) != registry.end(); }
             // the same as isChunkRegistered
             static inline auto exists = isChunkRegistered;
-
-            static mesh::Mesh stitchRegistryMesh(const bool optimiseMesh = true, const bool restitchMeshes = false) {
-                if (!worldMesh.empty()) { worldMesh = mesh::Mesh(); }
-
-                for (const auto& [key, chunk] : registry) {
-                    worldMesh.merge(restitchMeshes ? chunk->stitchMesh() : chunk->mesh);
-                }
-
-                worldMesh.optimise();
-
-                return worldMesh;
-            }
     };
 
 
@@ -200,9 +203,9 @@ namespace world {
             unsigned char altX = x - blockChunkVector.x * CHUNK_WIDTH;
             unsigned char altY = y - blockChunkVector.y * CHUNK_WIDTH;
 
-            if (chunkRegistry::registry[neighbourChunkPos]->blockData[altX][altY][z].type != BlockType::air) { return true; }
+            if (chunkRegistry::registry[neighbourChunkPos]->getBlock(altX, altY, z).type != BlockType::air) { return true; }
         }
-        else if (blockData[x][y][z].type != BlockType::air) { return true; }
+        else if (getBlock(x, y, z).type != BlockType::air) { return true; }
 
         return false;
     }
@@ -227,11 +230,11 @@ namespace world {
     }
 
     inline void Chunk::scaleAndApplyUVs(const GLfloat UVx, const GLfloat UVy, const glm::fvec4 UVdata) {
-        this->mesh->UVs.push_back(UVdata.x + (UVx * UVdata.z));
-        this->mesh->UVs.push_back(UVdata.y + (UVy * UVdata.w)); // Flip Y
+        this->mesh->uvs.push_back(UVdata.x + (UVx * UVdata.z));
+        this->mesh->uvs.push_back(UVdata.y + (UVy * UVdata.w)); // Flip Y
     }
 
-    inline void Chunk::addSideToMesh(const unsigned char& sideFlag, mesh::Mesh* side, const std::array<unsigned short int, 3>& localPosition) {
+    inline void Chunk::addSideToMesh(const unsigned char& sideFlag, mesh::meshData* side, const std::array<unsigned short int, 3>& localPosition) {
         size_t firstVertexIndex = this->mesh->vertices.size() / 3u; // last element + 1
         for (const auto& index : side->indices) {
             this->mesh->indices.push_back(index + firstVertexIndex);
@@ -241,7 +244,7 @@ namespace world {
             scaleAndApplyVertice(*i, *(i + 1), *(i + 2), localPosition);
         }
 
-        BlockRef* blockData = this->blockData[localPosition[0]][localPosition[1]][localPosition[2]].blockData;
+        BlockRef* blockData = getBlock(localPosition[0], localPosition[1], localPosition[2]).blockData;
         unsigned short textureID = 0u;
 
 
@@ -254,48 +257,48 @@ namespace world {
 
         glm::fvec4 uvData = getTextureCoordinates(textureID);
 
-        for (auto i = side->UVs.begin(); i != side->UVs.end(); i += 2) {
+        for (auto i = side->uvs.begin(); i != side->uvs.end(); i += 2) {
             scaleAndApplyUVs(*i, *(i+1), uvData);
         }
     }
 
 
     inline void Chunk::updateBlockMeshFlags(const unsigned char x, const unsigned char y, const unsigned short z, const unsigned char ignoreFlags = 0u, const unsigned char forceFlags = 0u) {
-        if (blockData[x][y][z].type == BlockType::air) { return; }
-        if (blockData[x][y][z].acessPointer) {
-            if (((visibleBlock*)blockData[x][y][z].acessPointer)->flags) {
-                ((visibleBlock*)blockData[x][y][z].acessPointer)->flags = 0u;
+        if (getBlock(x, y, z).type == BlockType::air) { return; }
+        if (getBlock(x, y, z).acessPointer) {
+            if (((visibleBlock*)getBlock(x, y, z).acessPointer)->flags) {
+                ((visibleBlock*)getBlock(x, y, z).acessPointer)->flags = 0u;
             }
         }
 
         // above
         if (!(ignoreFlags & blockRenderFlag::RENDER_TOP) | (forceFlags & blockRenderFlag::RENDER_TOP)) {
-            if (!isBlock(x, y, z + 1)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_TOP, {x, y, z}); }
+            if (!isBlock(x, y, z + 1)) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_TOP, {x, y, z}); }
         }
 
         // below
         if (!(ignoreFlags & blockRenderFlag::RENDER_BOTTOM) | (forceFlags & blockRenderFlag::RENDER_BOTTOM)) {
-            if (!isBlock(x, y, z - 1) || z == 0 /* fixes underflow */) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_BOTTOM, {x, y, z}); }
+            if (!isBlock(x, y, z - 1) || z == 0 /* fixes underflow */) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_BOTTOM, {x, y, z}); }
         }
 
         // front
         if (!(ignoreFlags & blockRenderFlag::RENDER_FRONT) | (forceFlags & blockRenderFlag::RENDER_FRONT)) {
-            if (!isBlock(x, (short)y - 1, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_FRONT, {x, y, z}); }
+            if (!isBlock(x, (short)y - 1, z)) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_FRONT, {x, y, z}); }
         }
 
         // back
         if (!(ignoreFlags & blockRenderFlag::RENDER_BACK) | (forceFlags & blockRenderFlag::RENDER_BACK)) {
-            if (!isBlock(x, y + 1, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_BACK, {x, y, z}); }
+            if (!isBlock(x, y + 1, z)) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_BACK, {x, y, z}); }
         }
 
         // left
         if (!(ignoreFlags & blockRenderFlag::RENDER_LEFT) | (forceFlags & blockRenderFlag::RENDER_LEFT)) {
-            if (!isBlock((short)x - 1, y, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_LEFT, {x, y, z}); }
+            if (!isBlock((short)x - 1, y, z)) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_LEFT, {x, y, z}); }
         }
 
         // right
         if (!(ignoreFlags & blockRenderFlag::RENDER_RIGHT) | (forceFlags & blockRenderFlag::RENDER_RIGHT)) {
-            if (!isBlock(x + 1, y, z)) { updateFlag(&blockData[x][y][z], blockRenderFlag::RENDER_RIGHT, {x, y, z}); }
+            if (!isBlock(x + 1, y, z)) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_RIGHT, {x, y, z}); }
         }
     }
 
@@ -306,7 +309,7 @@ namespace world {
             for (unsigned int x = 0; x < CHUNK_WIDTH; ++x) {
                 if (layerBlockPresence[z]) { break; }
                 for (unsigned int y = 0; y < CHUNK_WIDTH; ++y) {
-                    if (blockData[x][y][z].type == BlockType::solid) { layerBlockPresence[z] = true; break; }
+                    if (getBlock(x, y, z).type == BlockType::solid) { layerBlockPresence[z] = true; break; }
                 }
             }
         }
@@ -341,13 +344,13 @@ namespace world {
     }
 
     // stitches the blocks in the current chunk into a single large mesh
-    inline mesh::Mesh* Chunk::stitchMesh() {
+    inline mesh::meshData* Chunk::stitchMesh() {
         if (mesh) {
             mesh->vertices.clear();
             mesh->indices.clear();
         }
         else {
-            mesh = new mesh::Mesh;
+            mesh = new mesh::meshData;
         }
 
         if (visibleBlockData.empty()) {
@@ -367,19 +370,30 @@ namespace world {
         if (visibleBlockData.empty()) { return mesh; }
 
         for (auto& entry : visibleBlockData) {
-            if (entry.flags & blockRenderFlag::RENDER_TOP) { addSideToMesh(blockRenderFlag::RENDER_TOP, &mesh::cubeDefaults::sides::top, entry.localPosition); }
-            if (entry.flags & blockRenderFlag::RENDER_BOTTOM) { addSideToMesh(blockRenderFlag::RENDER_BOTTOM, &mesh::cubeDefaults::sides::bottom, entry.localPosition); }
-            if (entry.flags & blockRenderFlag::RENDER_FRONT) { addSideToMesh(blockRenderFlag::RENDER_FRONT, &mesh::cubeDefaults::sides::front, entry.localPosition); }
-            if (entry.flags & blockRenderFlag::RENDER_BACK) { addSideToMesh(blockRenderFlag::RENDER_BACK,&mesh::cubeDefaults::sides::back, entry.localPosition); }
-            if (entry.flags & blockRenderFlag::RENDER_LEFT) { addSideToMesh(blockRenderFlag::RENDER_LEFT, &mesh::cubeDefaults::sides::left, entry.localPosition); }
-            if (entry.flags & blockRenderFlag::RENDER_RIGHT) { addSideToMesh(blockRenderFlag::RENDER_RIGHT, &mesh::cubeDefaults::sides::right, entry.localPosition); }
+            if (entry.flags & blockRenderFlag::RENDER_TOP) { addSideToMesh(blockRenderFlag::RENDER_TOP, &mesh::defaults::Cube::top, entry.localPosition); }
+            if (entry.flags & blockRenderFlag::RENDER_BOTTOM) { addSideToMesh(blockRenderFlag::RENDER_BOTTOM, &mesh::defaults::Cube::bottom, entry.localPosition); }
+            if (entry.flags & blockRenderFlag::RENDER_FRONT) { addSideToMesh(blockRenderFlag::RENDER_FRONT, &mesh::defaults::Cube::front, entry.localPosition); }
+            if (entry.flags & blockRenderFlag::RENDER_BACK) { addSideToMesh(blockRenderFlag::RENDER_BACK,&mesh::defaults::Cube::back, entry.localPosition); }
+            if (entry.flags & blockRenderFlag::RENDER_LEFT) { addSideToMesh(blockRenderFlag::RENDER_LEFT, &mesh::defaults::Cube::left, entry.localPosition); }
+            if (entry.flags & blockRenderFlag::RENDER_RIGHT) { addSideToMesh(blockRenderFlag::RENDER_RIGHT, &mesh::defaults::Cube::right, entry.localPosition); }
         }
-
+        
         return mesh;
     }
 
     inline bool Chunk::registerChunk(glm::ivec2 position) { return chunkRegistry::registerChunk(this, position); }
+    inline void Chunk::deregisterChunk() { chunkRegistry::deregisterChunk(this, false); }
 
+    inline uint32_t Chunk::uploadMesh() {
+        mesh->meshID = chunkRenderer->upload(*mesh);
+        return mesh->meshID;
+    }
+
+    inline uint32_t Chunk::reuplaodMesh(){
+        chunkRenderer->free(mesh->meshID);
+        mesh->meshID = chunkRenderer->upload(*mesh);
+        return mesh->meshID;
+    }
 
 }
 

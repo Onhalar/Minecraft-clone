@@ -24,7 +24,7 @@ namespace world {
         unsigned short rightId;
     };
 
-    inline glm::fvec4 getTextureCoordinates(unsigned short int textureSheeetID) {
+    inline glm::fvec4 getTextureCoordinates(unsigned short textureSheeetID) {
         static bool initialized = false;
         static glm::ivec2 textureDimensions(0);
         static GLfloat UVSizeX = 0.0f;
@@ -66,12 +66,12 @@ namespace world {
     };
 
     struct BlockSides {
-        const mesh::Mesh* const front = &mesh::cubeDefaults::sides::front;
-        const mesh::Mesh* const back = &mesh::cubeDefaults::sides::back;
-        const mesh::Mesh* const top = &mesh::cubeDefaults::sides::top;
-        const mesh::Mesh* const bottom = &mesh::cubeDefaults::sides::bottom;
-        const mesh::Mesh* const left = &mesh::cubeDefaults::sides::left;
-        const mesh::Mesh* const right = &mesh::cubeDefaults::sides::right;
+        const mesh::meshData* const front = &mesh::defaults::Cube::front;
+        const mesh::meshData* const back = &mesh::defaults::Cube::back;
+        const mesh::meshData* const top = &mesh::defaults::Cube::top;
+        const mesh::meshData* const bottom = &mesh::defaults::Cube::bottom;
+        const mesh::meshData* const left = &mesh::defaults::Cube::left;
+        const mesh::meshData* const right = &mesh::defaults::Cube::right;
     };
 
     // reference sheet for blocks
@@ -83,12 +83,12 @@ namespace world {
         BlockRef(): palette({0,0,0,0,0,0}), sides(BlockSides()) {}
         BlockRef( const blockTexture& palette): palette(palette), sides(BlockSides()) {}
         BlockRef( const blockTexture& palette,
-            const mesh::Mesh* front,
-            const mesh::Mesh* back,
-            const mesh::Mesh* top,
-            const mesh::Mesh* bottom,
-            const mesh::Mesh* left,
-            const mesh::Mesh* right
+            const mesh::meshData* front,
+            const mesh::meshData* back,
+            const mesh::meshData* top,
+            const mesh::meshData* bottom,
+            const mesh::meshData* left,
+            const mesh::meshData* right
         ): palette(palette), sides({front, back, top, bottom, left, right}) {}
     };
 

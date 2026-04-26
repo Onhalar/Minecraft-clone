@@ -1,3 +1,4 @@
+#include "mesh.hpp"
 #include "texture.hpp"
 #include <config.hpp>
 #include <types.hpp>
@@ -71,4 +72,8 @@ void APIENTRY MessageCallback(GLenum source, GLenum type, GLuint id, GLenum seve
 
 void setupTextureSheet() {
     mainTextureAtlas = new Texture(projectPath(textureSheetPath).c_str(), GL_TEXTURE_2D, GL_TEXTURE0, GL_RGBA, GL_UNSIGNED_BYTE);
+}
+
+void setupRenderer() {
+    chunkRenderer = new mesh::MassRenderer();
 }

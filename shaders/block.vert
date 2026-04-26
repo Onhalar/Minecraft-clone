@@ -1,20 +1,20 @@
-#version 330 core
+#version 460 core
 
 layout (location = 0) in vec3 vertexPos;
 layout (location = 1) in vec2 UV;
 
-out vec3 currentPosition;
-out vec2 texturePosition;
+layout(std430, binding = 0) readonly buffer ChunkData {
+    vec4 chunkPositions[];  // xyz = chunk coord, w unused
+};
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
-void main() {
-    // Transform vertex position to world space
-    currentPosition = vec3(model * vec4(vertexPos, 1.0f));
+out vec2 vUV;
 
-    texturePosition = UV;
-    // Transform vertex to clip space
-    gl_Position = projection * view * model * vec4(vertexPos, 1.0f);
+void main() {
+    // chunkPositions holds chunk coords, multiply by 16 to get world space
+    gl_Position = projection * view * model * vec4(vertexPos, 1.0);
+    vUV = UV;
 }
