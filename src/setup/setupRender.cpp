@@ -55,7 +55,7 @@ void setupShaderMetrices(Shader* shader) {
 
     // Initialize the camera (make sure it's only initialized once)
     if (!currentCamera) {
-        currentCamera = new Camera(windowWidth, windowHeight, glm::vec3(0.5f, -5.0f, 1.0f));
+        currentCamera = new Camera(windowWidth, windowHeight, glm::vec3(0.5f, -5.0f, 75.0f));
     }
 
     currentCamera->updateProjection(windowWidth, windowHeight, shader);

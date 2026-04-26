@@ -191,6 +191,6 @@ void mainLoop() {
 }
 
 void cleanup() {
-    chunkRegistry::deregisterAll();
+    world::chunkRegistry::deregisterAll();
     if (mainTextureAtlas) { delete mainTextureAtlas; }
 }

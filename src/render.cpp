@@ -1,3 +1,4 @@
+#include "biom.hpp"
 #include "glm/fwd.hpp"
 #include "shader.hpp"
 #include <core.hpp>
@@ -9,24 +10,23 @@
 
 #include <mesh.hpp>
 #include <chunk.hpp>
+#include <chunkGeneration.hpp>
 
 #include <VAO.hpp>
 #include <VBO.hpp>
 #include <EBO.hpp>
 
-Chunk chunk;
-Chunk chunk2;
+world::Chunk* chunk1;
+world::Chunk* chunk2;
 
 void renderSetup() {
-    chunk.registerChunk({0, 0});
-    chunk.blockData[0u][1u][0u] = Block(1u);
-    chunk.blockData[0u][1u][1u] = Block(0u);
-    chunk.blockData[0u][0u][0u] = Block(0u);
 
-    chunk2.registerChunk({-1, 0});
-    chunk2.blockData[CHUNK_WIDTH - 1][0u][0u] = Block(0u);
+    world::chunkGenerator generator = world::chunkGenerator();
 
-    chunkRegistry::stitchRegistryMesh(true, true);
+    chunk1 = generator.generate({0, 0}, &world::biomRegistry["plains"]);
+    chunk2 = generator.generate({0, -1}, &world::biomRegistry["plains"]);
+
+    world::chunkRegistry::stitchRegistryMesh(true, true);
 
     /*std::cout << "indicies" << std::endl;
     for (int i = 1; i <= chunk.mesh->indices.size(); ++i) {
@@ -45,7 +45,7 @@ void render() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     mainTextureAtlas->bind();
-    chunkRegistry::worldMesh.render(Shaders["block"]);
+    world::chunkRegistry::worldMesh.render(Shaders["block"]);
 
     glfwSwapBuffers(mainWindow);
 }
@@ -53,7 +53,7 @@ void render() {
 
 
 void resize(GLFWwindow *window, int width, int height) {
-    if ((width | height) == 0) {
+    if (!(width | height)) {
         isMinimized = true;
         return;
     }

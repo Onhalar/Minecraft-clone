@@ -11,8 +11,8 @@
 inline int minWindowWidth = 300;
 inline int minWindowHeight = 250;
 
-inline int defaultWindowWidth = 600;
-inline int defaultWindowHeight = 500;
+inline int defaultWindowWidth = 1024;
+inline int defaultWindowHeight = 720;
 
 inline unsigned short blockTextureWidth = 16; // px - pixel widht of a block in texture atlas
 

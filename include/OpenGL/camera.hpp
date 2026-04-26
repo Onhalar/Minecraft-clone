@@ -26,11 +26,11 @@ class Camera {
         glm::vec3 orientation = glm::vec3(0.0f, 1.0f, 0.0f);
         const glm::vec3 UP = glm::vec3(0.0f, 0.0f, 1.0f);
 
-        float cameraSpeed = 12.5f;
+        float cameraSpeed = 25.0f;
         float sensitivity = 175.0f;
 
         float nearClipPlane = 0.1f;
-        float farClipPlane = 100.0f;
+        float farClipPlane = 10'000.0f;
 
         int width, height;
 
