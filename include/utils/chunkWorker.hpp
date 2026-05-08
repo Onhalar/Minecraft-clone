@@ -62,6 +62,8 @@ namespace world {
                     std::lock_guard<std::mutex> lock(workerMutex);
                     addQueue.clear();
                     removeQueue.clear();
+
+                    cv.notify_all(); // Wake up worker thread to let it exit if it's waiting
                 }
 
                 static void checkForNewChunks(glm::fvec3& playerPosition) {
@@ -128,7 +130,8 @@ namespace world {
                         {
                             std::unique_lock<std::mutex> lock(workerMutex);
                             // Wake up if either queue has work
-                            cv.wait(lock, [] { return !removeQueue.empty() || !addQueue.empty(); });
+                            cv.wait(lock, [] { return shouldTerminate || !removeQueue.empty() || !addQueue.empty(); });
+                            if (shouldTerminate) { break; }
 
                             // Drain removes first — always prefer them to avoid buffer overflow
                             if (!removeQueue.empty()) {
@@ -169,7 +172,7 @@ namespace world {
                             Chunk* chunkToRemove = nullptr;
                             
                             {
-                                std::lock_guard<std::mutex> lock(workerMutex);
+                                std::lock_guard<std::mutex> lock(world::chunkRegistry::registryMutex);
                                 auto it = world::chunkRegistry::registry.find(chunkPos);
                                 if (it != world::chunkRegistry::registry.end()) {
                                     // Only deregister if not in ready queue

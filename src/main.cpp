@@ -1,6 +1,7 @@
 #include <core.hpp>
 #include <config.hpp>
 #include <globals.hpp>
+#include <mutex>
 #include <thread>
 #include <types.hpp>
 #include <render.hpp>
@@ -213,6 +214,25 @@ void mainLoop() {
 }
 
 void cleanup() {
+
+    world::chunkWorker::shouldTerminate = true;
+    {
+        //std::lock_guard<std::mutex> lock(world::chunkWorker::workerMutex);
+        world::chunkWorker::clearAssignedWork();
+    }
+
+    if (world::chunkWorker::workerThread.joinable()) { 
+        world::chunkWorker::workerThread.join(); 
+    }
+    
+    if (mainTextureAtlas) { delete mainTextureAtlas; mainTextureAtlas = nullptr; }
+    if (currentCamera) { delete currentCamera; currentCamera = nullptr; }
+
+    for (auto& [key, shader] : Shaders) { if (shader) { delete shader; shader = nullptr; } }
+    
+    if (world::worldGenerator) { delete world::worldGenerator; world::worldGenerator = nullptr; }
+
     world::chunkRegistry::deregisterAll();
-    if (mainTextureAtlas) { delete mainTextureAtlas; }
+
+    if (chunkRenderer) { delete chunkRenderer; chunkRenderer = nullptr; }
 }
