@@ -1,3 +1,5 @@
+#include <render.hpp>
+
 #include "mesh.hpp"
 #include "texture.hpp"
 #include <config.hpp>

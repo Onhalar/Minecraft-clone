@@ -3,15 +3,17 @@
 #include <globals.hpp>
 #include <thread>
 #include <types.hpp>
+#include <render.hpp>
 
 #include <debug.hpp>
 #include <FormatConsole.hpp>
+#include <chunkGeneration.hpp>
+#include <chunkWorker.hpp>
 
 #include <chrono>
 #include <thread>
 #include <filesystem>
 
-#include "camera.hpp"
 #include "chunk.hpp"
 #include "setup/setupRender.cpp"
 
@@ -45,6 +47,8 @@ int main(int argc, char **argv) {
     setupOpenGL();
 
     renderSetup();
+    
+    world::worldGenerator = new world::chunkGenerator();
 
     mainLoop();
 
@@ -145,6 +149,8 @@ void mainLoop() {
     TinyUInt frameCount = 0;
     std::chrono::nanoseconds frameDuration(1'000'000'000 / targetFrameRate); // 1,000,000 μs / 60 = 16666 μs = 16.666 m
 
+    world::chunkWorker::workerThread = std::thread(world::chunkWorker::workerThreadFunc);
+
     while (!glfwWindowShouldClose(mainWindow)) {
         auto frameStart = std::chrono::steady_clock::now(); // Use std::chrono
 
@@ -158,13 +164,22 @@ void mainLoop() {
                 currentCamera->updateProjection(shader);
             }
 
+            // CHUNKS
+            if (frameCount % 10 == 0) { // check for new chunks every 10 frames (adjust as needed)
+                world::chunkWorker::checkForNewChunks(currentCamera->position);
+            }
+            else if (frameCount % 10 == 5) { // check for far chunks every 10 frames, offset from new chunk check (adjust as needed)
+                world::chunkWorker::checkForFarChunks(currentCamera->position);
+            }
+            
+            world::chunkWorker::uploadQueuedMeshes();
+            
             render();
 
         }
 
         static std::chrono::steady_clock::time_point lastTime;
 
-        // here just so everything doesn't fly 10 000 km off the screen
         static bool isFirstFrame = true;
         if (isFirstFrame) {
             lastTime = frameStart;

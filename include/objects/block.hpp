@@ -1,6 +1,8 @@
 #ifndef BLOCK_DEFINITIONS_HEADER
 #define BLOCK_DEFINITIONS_HEADER
 
+#include <render.hpp>
+
 #include "mesh.hpp"
 #include <map>
 #include <core.hpp>

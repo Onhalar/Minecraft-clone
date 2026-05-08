@@ -1,11 +1,14 @@
 #ifndef CHUNK_MANAGER_HEADER
 #define CHUNK_MANAGER_HEADER
 
+#include <algorithm>
 #include <core.hpp>
+#include <render.hpp>
+
 #include "glm/ext/vector_int2.hpp"
-#include "globals.hpp"
 #include <cstddef>
 #include <glm/glm.hpp>
+#include <mutex>
 #include <types.hpp>
 #include <glm/glm.hpp>
 #include <mesh.hpp>
@@ -54,6 +57,8 @@ namespace world {
 
     struct Chunk {
         private:
+            bool isMeshUploaded = false;
+
             // check whether the block is solid and acessable
             bool isBlock(const short x, const short y, const unsigned short z, const bool checkSurroundingChunks);
             void updateFlag(Block* block, const unsigned char flag, std::array<unsigned short, 3> localPosition);
@@ -72,14 +77,16 @@ namespace world {
             bool layerBlockPresence[CHUNK_HEIGHT]; // if a block is present in a layer
             bool baked = false;
 
-            Chunk(glm::vec2 position): position(position) { this->registerChunk(position); }
-            Chunk(): position(glm::vec2(0.0f)) { this->registerChunk(position); }
-            Chunk(const Chunk& master): position(master.position), blockData(master.blockData), mesh(new mesh::meshData(*master.mesh)) { this->registerChunk(position); } // overwrites the original chunk's registry
+            Chunk(glm::vec2 position, const bool registerChunk = true): position(position) { if (registerChunk) this->registerChunk(position); }
+            Chunk(const bool registerChunk = true): position(glm::vec2(0.0f)) { if (registerChunk) this->registerChunk(position); }
+            Chunk(const Chunk& master, const bool registerChunk = true): position(master.position), blockData(master.blockData), mesh(new mesh::meshData(*master.mesh)) { if (registerChunk) this->registerChunk(position); }
 
             ~Chunk() {
                 visibleBlockData.clear();
                 
                 if (mesh) {
+                    if (isMeshUploaded) { chunkRenderer->free(this->mesh->meshID); }
+                    
                     delete mesh;
                     mesh = nullptr;
                 }
@@ -101,9 +108,7 @@ namespace world {
             // stitches the blocks in the current chunk into a single large mesh
             mesh::meshData* stitchMesh();
 
-            uint32_t uploadMesh(); // uploads mesh ONLY ON INIT
-            uint32_t reuplaodMesh(); // updates the mesh
-            
+            uint32_t uploadMesh(); // uploads mesh            
     };
 
 
@@ -111,14 +116,17 @@ namespace world {
 
     class chunkRegistry {
         public:
+            static inline std::mutex registryMutex;
             static inline std::unordered_map<glm::ivec2, Chunk*, ivec2_hash> registry = std::unordered_map<glm::ivec2, Chunk*, ivec2_hash>();
             static inline std::vector<uint32_t> visibleChunks = {};
 
             static void deregisterAll() {
+                std::lock_guard<std::mutex> lock(registryMutex);
                 for (auto& [key, chunk] : registry) { if (chunk) { delete chunk; chunk = nullptr; } }
             }
 
             static bool registerChunk(Chunk* chunk, glm::ivec2 position) {
+                std::lock_guard<std::mutex> lock(registryMutex);
                 if (registry.find(position) != registry.end()) { return false; }
 
                 registry[position] = chunk;
@@ -127,24 +135,38 @@ namespace world {
             }
 
             static bool deregisterChunk(glm::ivec2 position, const bool destroy = true) {
+                std::lock_guard<std::mutex> lock(registryMutex);
                 auto chunkIter = registry.find(position);
                 if (chunkIter == registry.end()) { return false; }
 
-                if (destroy) { delete chunkIter->second; chunkIter->second = nullptr; }
+                Chunk* chunk = chunkIter->second;
+                if (chunk && chunk->mesh) {  // ← guard added
+                    visibleChunks.erase(
+                        std::remove(visibleChunks.begin(), visibleChunks.end(), chunk->mesh->meshID),
+                        visibleChunks.end());
+                }
+
+                if (destroy) { delete chunk; chunkIter->second = nullptr; }
                 registry.erase(chunkIter);
                 return true;
             }
 
             static bool deregisterChunk(Chunk* chunk, const bool destroy = true) {
+                std::lock_guard<std::mutex> lock(registryMutex);
                 auto chunkIter = registry.find(chunk->position);
                 if (chunkIter == registry.end()) { return false; }
                 
+                if (std::find(visibleChunks.begin(), visibleChunks.end(), chunkIter->second->mesh->meshID) != visibleChunks.end()) {
+                    visibleChunks.erase(std::remove(visibleChunks.begin(), visibleChunks.end(), chunkIter->second->mesh->meshID), visibleChunks.end());
+                }
+
                 if (destroy) { delete chunkIter->second; chunkIter->second = nullptr; }
                 registry.erase(chunkIter);
                 return true;
             }
 
             static void uploadMeshes(const bool stitchMeshes = false) {
+                std::lock_guard<std::mutex> lock(registryMutex);
                 if (stitchMeshes) { for ( const auto [position, chunk] : registry ) { chunk->stitchMesh(); } }
 
                 // TODO: make a propper is Chunk visible culler
@@ -157,8 +179,6 @@ namespace world {
             // the same as isChunkRegistered
             static inline auto exists = isChunkRegistered;
     };
-
-
 
 
 
@@ -189,25 +209,25 @@ namespace world {
 
     // ---==[PRIVATE DEFINITIONS]==---
 
-    inline bool Chunk::isBlock(const short x, const short y, const unsigned short z, const bool checkSurroundingChunks = true ) {
+    inline bool Chunk::isBlock(const short x, const short y, const unsigned short z, const bool checkSurroundingChunks = true) {
         if (z >= CHUNK_HEIGHT) { return false; }
         glm::ivec2 blockChunkVector = getblockChunkVector(x, y);
-        
+
         if (blockChunkVector != glm::ivec2(0)) {
             if (!checkSurroundingChunks) { return false; }
 
             glm::ivec2 neighbourChunkPos = position + blockChunkVector;
 
-            if (!chunkRegistry::exists(neighbourChunkPos)) { return false; }
+            std::lock_guard<std::mutex> lock(chunkRegistry::registryMutex);
+            auto it = chunkRegistry::registry.find(neighbourChunkPos);
+            if (it == chunkRegistry::registry.end() || !it->second) { return false; }
 
             unsigned char altX = x - blockChunkVector.x * CHUNK_WIDTH;
             unsigned char altY = y - blockChunkVector.y * CHUNK_WIDTH;
-
-            if (chunkRegistry::registry[neighbourChunkPos]->getBlock(altX, altY, z).type != BlockType::air) { return true; }
+            return it->second->getBlock(altX, altY, z).type != BlockType::air;
         }
-        else if (getBlock(x, y, z).type != BlockType::air) { return true; }
 
-        return false;
+        return getBlock(x, y, z).type != BlockType::air;
     }
 
     inline void Chunk::updateFlag(Block* block, const unsigned char flag, std::array<unsigned short, 3> localPosition) {
@@ -386,16 +406,27 @@ namespace world {
     inline bool Chunk::registerChunk(glm::ivec2 position) { return chunkRegistry::registerChunk(this, position); }
     inline void Chunk::deregisterChunk() { chunkRegistry::deregisterChunk(this, false); }
 
-    inline uint32_t Chunk::uploadMesh() {
-        mesh->meshID = chunkRenderer->upload(*mesh);
-        return mesh->meshID;
-    }
+        inline uint32_t Chunk::uploadMesh() {
+            uint32_t oldID = mesh->meshID;  // save BEFORE overwriting
 
-    inline uint32_t Chunk::reuplaodMesh(){
-        chunkRenderer->free(mesh->meshID);
-        mesh->meshID = chunkRenderer->upload(*mesh);
-        return mesh->meshID;
-    }
+            if (isMeshUploaded) {
+                chunkRenderer->free(oldID);
+            }
+
+            mesh->meshID = chunkRenderer->upload(*mesh);
+            isMeshUploaded = true;
+
+            std::lock_guard<std::mutex> lock(chunkRegistry::registryMutex);
+            if (isMeshUploaded) {
+                // remove the OLD id from visible list, not the new one
+                chunkRegistry::visibleChunks.erase(
+                    std::remove(chunkRegistry::visibleChunks.begin(), chunkRegistry::visibleChunks.end(), oldID),
+                    chunkRegistry::visibleChunks.end());
+            }
+            chunkRegistry::visibleChunks.push_back(mesh->meshID);
+
+            return mesh->meshID;
+        }
 
 }
 

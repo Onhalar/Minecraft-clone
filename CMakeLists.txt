@@ -66,6 +66,10 @@ target_compile_definitions(MinecraftClone PRIVATE
     $<$<CONFIG:Debug>:DEBUG_ENABLED>
 )
 
+# Add to your CMakeLists.txt temporarily
+target_compile_options(MinecraftClone PRIVATE -fsanitize=address -g)
+target_link_options(MinecraftClone PRIVATE -fsanitize=address)
+
 # Define paths to the directories
 set(SOURCE_RES_DIR "${CMAKE_SOURCE_DIR}/res")
 set(SOURCE_SHADERS_DIR "${CMAKE_SOURCE_DIR}/shaders")

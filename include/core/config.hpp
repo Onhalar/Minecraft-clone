@@ -2,11 +2,8 @@
 #define MAIN_CONFIG_HEADER
 
 #include <chrono>
-#include <cstdlib>
-#include <ctime>
 #include <filesystem>
 #include <string>
-#include <random>
 
 #include <color.hpp>
 
@@ -33,6 +30,8 @@ inline int targetFrameRate = 60;
 inline float staticDelayFraction = 0.65f;
 inline std::chrono::nanoseconds spinDelay(375);
 
+inline int renderDistance = 8; // in chunks
+
 struct WorldSettings {
     inline static unsigned int seed = 0u;
 
@@ -48,7 +47,7 @@ struct WorldSettings {
 
     // How many of the nearest biomes to blend per column.
     // 1 = no blending, 2-3 = smooth transitions (3 is a good default).
-        inline static int blendCandidates = 3;
-    };
+    inline static int blendCandidates = 3;
+};
 
 #endif // MAIN_CONFIG_HEADER

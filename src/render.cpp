@@ -1,12 +1,13 @@
-#include "biome.hpp"
-#include "shader.hpp"
+#include "chunkWorker.hpp"
 #include <core.hpp>
 #include <config.hpp>
-#include <cstdio>
 #include <globals.hpp>
+#include <render.hpp>
 #include <types.hpp>
+
 #include <debug.hpp>
 #include <FormatConsole.hpp>
+#include <shader.hpp>
 
 #include <mesh.hpp>
 #include <chunk.hpp>
@@ -16,26 +17,15 @@
 #include <VBO.hpp>
 #include <EBO.hpp>
 
+#include <cstdio>
+
+
 #define WORLD_WIDTH 32
 #define WORLD_LENGTH 32
 
 world::Chunk* chunks[WORLD_WIDTH * WORLD_LENGTH];
 
 void renderSetup() {
-    std::srand(std::time(nullptr)); WorldSettings::seed = std::rand();
-    
-    world::chunkGenerator generator = world::chunkGenerator();
-
-    for (unsigned int x = 0; x < WORLD_WIDTH; ++x) {
-        for (unsigned int y = 0; y < WORLD_LENGTH; ++y) {
-            chunks[x * WORLD_WIDTH + y] = generator.generate({x, y});
-            printf("Making chunk: %u, %u\n", x, y);
-        }
-    }
-
-    printf("%s", "\nMeshing... "); fflush(stdout);
-    world::chunkRegistry::uploadMeshes(true);
-    printf("%s", "done\n");
 }
 
 void render() {

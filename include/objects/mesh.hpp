@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <deque>
 #include <stdexcept>
+#include <mutex>
 
 #include <glad/glad.h>
 #include <glm/glm.hpp>
@@ -62,6 +63,8 @@ namespace mesh {
             static constexpr size_t MAX_VERTICES = 8'000'000;
             static constexpr size_t MAX_INDICES  = 16'000'000;
             static constexpr size_t MAX_CHUNKS   = 4096;
+            
+            static inline std::mutex rendererMutex;
 
             MassRenderer() { init(); }
             ~MassRenderer() { destroy(); }
@@ -304,14 +307,44 @@ namespace mesh {
 
     inline void MassRenderer::freeVertexBlock(size_t offset, size_t size) {
         freeVertexBlocks_.push_back({offset, size});
-        // TODO: coalesce adjacent blocks to reduce fragmentation over time
+
+        // Sort by offset, then merge adjacent/overlapping blocks
+        std::sort(freeVertexBlocks_.begin(), freeVertexBlocks_.end(),
+            [](const FreeBlock& a, const FreeBlock& b){ return a.offset < b.offset; });
+
+        for (auto it = freeVertexBlocks_.begin(); it != freeVertexBlocks_.end(); ) {
+            auto next = std::next(it);
+            if (next == freeVertexBlocks_.end()) break;
+            if (it->offset + it->size >= next->offset) {
+                it->size = std::max(it->offset + it->size, next->offset + next->size) - it->offset;
+                freeVertexBlocks_.erase(next);
+            } else {
+                ++it;
+            }
+        }
     }
 
     inline void MassRenderer::freeIndexBlock(size_t offset, size_t size) {
         freeIndexBlocks_.push_back({offset, size});
+
+        std::sort(freeIndexBlocks_.begin(), freeIndexBlocks_.end(),
+            [](const FreeBlock& a, const FreeBlock& b){ return a.offset < b.offset; });
+
+        for (auto it = freeIndexBlocks_.begin(); it != freeIndexBlocks_.end(); ) {
+            auto next = std::next(it);
+            if (next == freeIndexBlocks_.end()) break;
+            if (it->offset + it->size >= next->offset) {
+                it->size = std::max(it->offset + it->size, next->offset + next->size) - it->offset;
+                freeIndexBlocks_.erase(next);
+            } else {
+                ++it;
+            }
+        }
     }
 
     inline uint32_t MassRenderer::upload(const meshData& data) {
+        std::lock_guard<std::mutex> lock(rendererMutex);
+
         size_t vertCount = data.vertices.size() / 3;
         size_t idxCount  = data.indices.size();
 

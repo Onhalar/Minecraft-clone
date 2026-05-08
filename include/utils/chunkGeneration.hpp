@@ -12,7 +12,6 @@
 #include <numeric>
 #include <algorithm>
 #include <random>
-#include <limits>
 
 namespace world {
 
@@ -97,10 +96,10 @@ namespace world {
             // Generate and register a chunk at the given chunk-space position.
             // Biome selection and blending are resolved internally per column.
             // Returns nullptr if the chunk is already registered.
-            Chunk* generate(glm::ivec2 chunkPosition) {
+            Chunk* generate(glm::ivec2 chunkPosition, const bool registerChunk = true) {
                 if (chunkRegistry::isChunkRegistered(chunkPosition)) { return nullptr; }
 
-                Chunk* chunk = new Chunk(glm::vec2(chunkPosition));
+                Chunk* chunk = new Chunk(glm::vec2(chunkPosition), registerChunk);
 
                 for (unsigned char x = 0; x < CHUNK_WIDTH; ++x) {
                     for (unsigned char y = 0; y < CHUNK_WIDTH; ++y) {
@@ -234,6 +233,9 @@ namespace world {
             }
     };
 
+    inline world::chunkGenerator* worldGenerator = nullptr;
+
 } // namespace world
+
 
 #endif // CHUNK_GENERATION_HEADER
