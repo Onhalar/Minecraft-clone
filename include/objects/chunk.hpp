@@ -407,6 +407,8 @@ namespace world {
     inline void Chunk::deregisterChunk() { chunkRegistry::deregisterChunk(this, false); }
 
         inline uint32_t Chunk::uploadMesh() {
+            if (!mesh || mesh->empty()) return 0;
+
             uint32_t oldID = mesh->meshID;  // save BEFORE overwriting
 
             if (isMeshUploaded) {

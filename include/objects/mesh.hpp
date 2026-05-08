@@ -60,9 +60,9 @@ namespace mesh {
 
     class MassRenderer {
         public:
-            static constexpr size_t MAX_VERTICES = 8'000'000;
-            static constexpr size_t MAX_INDICES  = 16'000'000;
-            static constexpr size_t MAX_CHUNKS   = 4096;
+            static constexpr size_t MAX_VERTICES = 16'000'000;
+            static constexpr size_t MAX_INDICES  = 32'000'000;
+            static constexpr size_t MAX_CHUNKS   = 8192;
             
             static inline std::mutex rendererMutex;
 
@@ -306,18 +306,20 @@ namespace mesh {
     }
 
     inline void MassRenderer::freeVertexBlock(size_t offset, size_t size) {
-        freeVertexBlocks_.push_back({offset, size});
+        freeVertexBlocks_.push_back({offset, size});  // append first
 
-        // Sort by offset, then merge adjacent/overlapping blocks
+        // Sort — all iterators obtained AFTER this point are fresh
         std::sort(freeVertexBlocks_.begin(), freeVertexBlocks_.end(),
             [](const FreeBlock& a, const FreeBlock& b){ return a.offset < b.offset; });
 
+        // Merge — obtain iterators only after the sort
         for (auto it = freeVertexBlocks_.begin(); it != freeVertexBlocks_.end(); ) {
             auto next = std::next(it);
             if (next == freeVertexBlocks_.end()) break;
             if (it->offset + it->size >= next->offset) {
                 it->size = std::max(it->offset + it->size, next->offset + next->size) - it->offset;
-                freeVertexBlocks_.erase(next);
+                it = freeVertexBlocks_.erase(next);  // ← reassign 'it' from erase's return value
+                // DON'T advance 'it' — check again from same position to catch chains of merges
             } else {
                 ++it;
             }
@@ -335,7 +337,7 @@ namespace mesh {
             if (next == freeIndexBlocks_.end()) break;
             if (it->offset + it->size >= next->offset) {
                 it->size = std::max(it->offset + it->size, next->offset + next->size) - it->offset;
-                freeIndexBlocks_.erase(next);
+                it = freeIndexBlocks_.erase(next);  // ← fix: reassign 'it', same as freeVertexBlock
             } else {
                 ++it;
             }
@@ -388,6 +390,7 @@ namespace mesh {
     }
 
     inline void MassRenderer::free(uint32_t id) {
+        std::lock_guard<std::mutex> lock(rendererMutex);
         auto it = allocations_.find(id);
         if (it == allocations_.end()) return;
 

@@ -165,13 +165,13 @@ void mainLoop() {
             }
 
             // CHUNKS
-            if (frameCount % 10 == 0) { // check for new chunks every 10 frames (adjust as needed)
-                world::chunkWorker::checkForNewChunks(currentCamera->position);
-            }
-            else if (frameCount % 10 == 5) { // check for far chunks every 10 frames, offset from new chunk check (adjust as needed)
+            if (frameCount % 5 == 0) { // check for new chunks every 10 frames (adjust as needed)
                 world::chunkWorker::checkForFarChunks(currentCamera->position);
             }
-            
+            else if (frameCount % 5 == 2) { // check for far chunks every 10 frames, offset from new chunk check (adjust as needed)
+                world::chunkWorker::checkForNewChunks(currentCamera->position);
+            }
+
             world::chunkWorker::uploadQueuedMeshes();
             
             render();
