@@ -7,6 +7,8 @@
 
 
 namespace world {
+
+    using blockID = unsigned short int;
     
     enum BlockType: bool {
         air,
@@ -14,17 +16,17 @@ namespace world {
     };
 
     struct blockTexture {
-        unsigned short topId;
-        unsigned short bottomId;
+        blockID topId;
+        blockID bottomId;
 
-        unsigned short frontId;
-        unsigned short backId;
+        blockID frontId;
+        blockID backId;
 
-        unsigned short leftId;
-        unsigned short rightId;
+        blockID leftId;
+        blockID rightId;
     };
 
-    inline glm::fvec4 getTextureCoordinates(unsigned short textureSheeetID) {
+    inline glm::fvec4 getTextureCoordinates(blockID textureSheeetID) {
         static bool initialized = false;
         static glm::ivec2 textureDimensions(0);
         static GLfloat UVSizeX = 0.0f;
@@ -93,20 +95,30 @@ namespace world {
     };
 
     struct Block {
-        BlockRef* blockData = nullptr;
+        blockID ID = 0u;
         BlockType type;
         void* acessPointer = nullptr; // here to access possible visibleBlock entries NULL BY DEFAULT
 
         Block(): type(BlockType::air) {}
-        Block(BlockRef* blockData): blockData(blockData), type(BlockType::solid) {}
-        Block(BlockRef* blockData, BlockType type): blockData(blockData), type(type) {}
+        Block(blockID ID): ID(ID), type(BlockType::solid) {}
+        Block(blockID ID, BlockType type): ID(ID), type(type) {}
     };
 
 
-    inline std::map<std::string, BlockRef> blockPalette = {
-        {"grass", BlockRef({0, 2, 1, 1, 1, 1}) },
-        {"dirt", BlockRef({2, 2, 2, 2, 2, 2}) },
-        {"stone", BlockRef({3, 3, 3, 3, 3, 3}) }
+    inline std::vector<BlockRef> blockPalette = {
+        BlockRef({0, 2, 1, 1, 1, 1}),
+        BlockRef({2, 2, 2, 2, 2, 2}),
+        BlockRef({3, 3, 3, 3, 3, 3}),
+        BlockRef({4, 4, 4, 4, 4, 4}),
+        BlockRef({5, 5, 5, 5, 5, 5})
+    };
+
+    inline std::map<std::string, blockID> blockIDlookup = {
+        {"grass", 0u},
+        {"dirt", 1u},
+        {"stone", 2u},
+        {"snow", 3u},
+        {"sand", 4u}
     };
 }
 

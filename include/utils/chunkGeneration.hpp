@@ -6,14 +6,16 @@
 
 #include <chunk.hpp>
 #include <block.hpp>
-#include <biom.hpp>
+#include <biome.hpp>
 
 #include <cmath>
 #include <numeric>
 #include <algorithm>
 #include <random>
+#include <limits>
 
 namespace world {
+
 
     // ---------------------------------------------------------------------------
     // Minimal self-contained Perlin noise (no external dep needed)
@@ -58,7 +60,6 @@ namespace world {
             static float fade(float t) { return t * t * t * (t * (t * 6 - 15) + 10); }
             static float lerp(float t, float a, float b) { return a + t * (b - a); }
             static float grad(int hash, float x, float y) {
-                // 2D gradient
                 int h = hash & 3;
                 float u = h < 2 ? x : y;
                 float v = h < 2 ? y : x;
@@ -67,19 +68,36 @@ namespace world {
     };
 
     // ---------------------------------------------------------------------------
+    // Biome blending helpers
+    // ---------------------------------------------------------------------------
+
+    // A biome paired with its interpolation weight for a given world column
+    struct BiomeWeight {
+        const biome* b;
+        float weight;
+    };
+
+    // ---------------------------------------------------------------------------
     // Chunk generator
     // ---------------------------------------------------------------------------
     class chunkGenerator {
-        PerlinNoise     noise;
+        WorldSettings   settings;
+        PerlinNoise     noise;            // terrain shape noise
+        PerlinNoise     temperatureNoise; // drives biome climate X axis
+        PerlinNoise     humidityNoise;    // drives biome climate Y axis
 
         public:
-            // Seed defaults to 0; pass a real seed for varied worlds
-            chunkGenerator(unsigned int seed = worldSeed)
-                : noise(seed) {}
+            chunkGenerator(WorldSettings settings = {})
+                : settings(settings)
+                , noise(settings.seed)
+                , temperatureNoise(settings.seed + 1)
+                , humidityNoise   (settings.seed + 2)
+            {}
 
             // Generate and register a chunk at the given chunk-space position.
+            // Biome selection and blending are resolved internally per column.
             // Returns nullptr if the chunk is already registered.
-            Chunk* generate(glm::ivec2 chunkPosition, biom* biom) {
+            Chunk* generate(glm::ivec2 chunkPosition) {
                 if (chunkRegistry::isChunkRegistered(chunkPosition)) { return nullptr; }
 
                 Chunk* chunk = new Chunk(glm::vec2(chunkPosition));
@@ -91,10 +109,9 @@ namespace world {
                         float wx = chunkPosition.x * CHUNK_WIDTH + x;
                         float wy = chunkPosition.y * CHUNK_WIDTH + y;
 
-                        int surfaceZ = getSurfaceHeight(wx, wy, biom);
-                        surfaceZ = std::clamp(surfaceZ, 1, CHUNK_HEIGHT - 1);
-
-                        fillColumn(*chunk, x, y, surfaceZ, biom);
+                        auto weights = getBiomeWeights(wx, wy);
+                        int surfaceZ = std::clamp(getBlendedSurfaceHeight(wx, wy, weights), 1, CHUNK_HEIGHT - 1);
+                        fillBlendedColumn(*chunk, x, y, surfaceZ, weights);
                     }
                 }
 
@@ -103,34 +120,116 @@ namespace world {
             }
 
         private:
-            // Returns the surface block Z for a given world XY column
-            int getSurfaceHeight(float wx, float wy, biom* biom) const {
-                float n = noise.fbm(
-                    wx * biom->scale,
-                    wy * biom->scale,
-                    biom->octaves,
-                    biom->persistence,
-                    biom->lacunarity
-                ); // n in [-1, 1]
 
-                // Map to [baseHeight - heightRange, baseHeight + heightRange]
-                return biom->baseHeight + static_cast<int>(n * biom->heightRange);
+            // -----------------------------------------------------------------------
+            // Climate sampling
+            // -----------------------------------------------------------------------
+
+            // Sample the climate (temperature, humidity) at a world-space column.
+            // Both values are in [-1, 1].
+            void sampleClimate(float wx, float wy, float& outTemp, float& outHum) const {
+                outTemp = temperatureNoise.noise(wx * settings.biomeSize, wy * settings.biomeSize);
+                outHum  = humidityNoise   .noise(wx * settings.biomeSize, wy * settings.biomeSize);
             }
 
-            // Fill a single XY column from z=0 up to surfaceZ
-            void fillColumn(Chunk& chunk, unsigned char x, unsigned char y, int surfaceZ, biom* biom) const {
+            // -----------------------------------------------------------------------
+            // Biome weighting
+            // -----------------------------------------------------------------------
+
+            // Returns the blendCandidates nearest biomes in climate space, with
+            // sharpness-adjusted inverse-distance weights that sum to 1.0.
+            // The vector is sorted descending by weight (dominant biome first).
+            std::vector<BiomeWeight> getBiomeWeights(float wx, float wy) const {
+                float temp, hum;
+                sampleClimate(wx, wy, temp, hum);
+
+                // Compute squared climate-space distance to every registered biome
+                std::vector<std::pair<float, const biome*>> dists;
+                dists.reserve(biomeRegistry.size());
+                for (const auto& [name, b] : biomeRegistry) {
+                    float dt = b.temperature - temp;
+                    float dh = b.humidity    - hum;
+                    dists.push_back({ dt * dt + dh * dh, &b });
+                }
+
+                // Keep only the N closest candidates
+                std::sort(dists.begin(), dists.end());
+                if ((int)dists.size() > settings.blendCandidates) {
+                    dists.resize(settings.blendCandidates);
+                }
+
+                // Sharpness-adjusted inverse-distance weighting.
+                // Raising to 1/sharpness pushes weight toward the closest biome
+                // as sharpness approaches 1.0, and spreads it evenly as it
+                // approaches 0.0, widening the transition zone.
+                const float exponent = 1.0f / std::max(settings.transitionSharpness, 1e-4f);
+                std::vector<BiomeWeight> result;
+                result.reserve(dists.size());
+                float totalW = 0.0f;
+                for (auto& [d, b] : dists) {
+                    float w = std::pow(1.0f / (d + 1e-6f), exponent);
+                    result.push_back({ b, w });
+                    totalW += w;
+                }
+                // Normalize so weights sum to 1
+                for (auto& bw : result) { bw.weight /= totalW; }
+
+                // Sort descending so result[0] is always the dominant biome
+                std::sort(result.begin(), result.end(),
+                    [](const BiomeWeight& a, const BiomeWeight& b){ return a.weight > b.weight; });
+
+                return result;
+            }
+
+            // -----------------------------------------------------------------------
+            // Height generation
+            // -----------------------------------------------------------------------
+
+            // Blend the surface height across the candidate biomes using their weights.
+            // Each biome contributes its own fbm sample scaled by its own parameters,
+            // so noise character (roughness, scale) also transitions smoothly.
+            int getBlendedSurfaceHeight(float wx, float wy,
+                                        const std::vector<BiomeWeight>& weights) const {
+                float blended = 0.0f;
+                for (const auto& [b, w] : weights) {
+                    float n = noise.fbm(
+                        wx * b->scale,
+                        wy * b->scale,
+                        b->octaves,
+                        b->persistence,
+                        b->lacunarity
+                    ); // n in [-1, 1]
+                    blended += w * (b->baseHeight + n * b->heightRange);
+                }
+                return static_cast<int>(blended);
+            }
+
+            // -----------------------------------------------------------------------
+            // Column fill
+            // -----------------------------------------------------------------------
+
+            // Fill a single XY column from z=0 up to surfaceZ.
+            // The dominant biome (highest weight) determines which blocks to place.
+            // Height is already blended above; blending block types themselves
+            // would produce ugly checkerboard patterns at boundaries.
+            void fillBlendedColumn(Chunk& chunk,
+                                   unsigned char x, unsigned char y,
+                                   int surfaceZ,
+                                   const std::vector<BiomeWeight>& weights) const {
+                const biome* dominant = weights[0].b; // highest weight, sorted above
+
                 for (int z = 0; z <= surfaceZ && z < CHUNK_HEIGHT; ++z) {
-                    BlockRef* blockData;
+                    blockID ID;
 
                     if (z == surfaceZ) {
-                        blockData = biom->surfaceBlock;             // top layer: grass
-                    } else if (z >= surfaceZ - biom->dirtDepth) {
-                        blockData = biom->topLayerBlock;            // subsurface: dirt
+                        ID = dominant->surfaceBlock;               // top: grass / sand / snow …
+                    } else if (z >= surfaceZ - dominant->dirtDepth) {
+                        ID = dominant->topLayerBlock;              // subsurface: dirt / sand …
                     } else {
-                        blockData = biom->deepLayerBlock;            // deep: dirt (swap for stone when you add it)
+                        ID = dominant->deepLayerBlock;             // deep: stone …
                     }
 
-                    chunk.getBlock(x, y, z) = Block(blockData, BlockType::solid);
+                    chunk.getBlock(x, y, z) = Block(ID, BlockType::solid);
                 }
             }
     };

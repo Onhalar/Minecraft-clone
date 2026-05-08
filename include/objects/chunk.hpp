@@ -244,7 +244,7 @@ namespace world {
             scaleAndApplyVertice(*i, *(i + 1), *(i + 2), localPosition);
         }
 
-        BlockRef* blockData = getBlock(localPosition[0], localPosition[1], localPosition[2]).blockData;
+        BlockRef* blockData = &blockPalette[getBlock(localPosition[0], localPosition[1], localPosition[2]).ID];
         unsigned short textureID = 0u;
 
 
@@ -260,6 +260,8 @@ namespace world {
         for (auto i = side->uvs.begin(); i != side->uvs.end(); i += 2) {
             scaleAndApplyUVs(*i, *(i+1), uvData);
         }
+
+        blockData = nullptr;
     }
 
 

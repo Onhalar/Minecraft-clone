@@ -1,5 +1,4 @@
-#include "biom.hpp"
-#include "glm/fwd.hpp"
+#include "biome.hpp"
 #include "shader.hpp"
 #include <core.hpp>
 #include <config.hpp>
@@ -17,18 +16,19 @@
 #include <VBO.hpp>
 #include <EBO.hpp>
 
-#define WORLD_WIDTH 16
-#define WORLD_LENGTH 16
+#define WORLD_WIDTH 32
+#define WORLD_LENGTH 32
 
 world::Chunk* chunks[WORLD_WIDTH * WORLD_LENGTH];
 
 void renderSetup() {
+    std::srand(std::time(nullptr)); WorldSettings::seed = std::rand();
+    
     world::chunkGenerator generator = world::chunkGenerator();
-    world::biom* plainsBiom = &world::biomRegistry["plains"];
 
     for (unsigned int x = 0; x < WORLD_WIDTH; ++x) {
         for (unsigned int y = 0; y < WORLD_LENGTH; ++y) {
-            chunks[x * WORLD_WIDTH + y] = generator.generate({x, y}, plainsBiom);
+            chunks[x * WORLD_WIDTH + y] = generator.generate({x, y});
             printf("Making chunk: %u, %u\n", x, y);
         }
     }
