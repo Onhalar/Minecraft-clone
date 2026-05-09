@@ -30,7 +30,7 @@ inline int targetFrameRate = 60;
 inline float staticDelayFraction = 0.65f;
 inline std::chrono::nanoseconds spinDelay(375);
 
-inline int renderDistance = 8; // in chunks
+inline int renderDistance = 16; // in chunks
 
 struct WorldSettings {
     inline static unsigned int seed = 0u;
