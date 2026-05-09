@@ -1,5 +1,5 @@
-#ifndef CHUNK_WORK_ASSIGNER_HEADER
-#define CHUNK_WORK_ASSIGNER_HEADER
+#ifndef CHUNK_WORKER_HEADER
+#define CHUNK_WORKER_HEADER
 
 #include <globals.hpp>
 #include <chunkGeneration.hpp>
@@ -7,8 +7,10 @@
 
 #include <mutex>
 #include <deque>
+#include <vector>
 #include <algorithm>
 #include <condition_variable>
+#include <cmath>
 
 #include <thread>
 
@@ -72,22 +74,33 @@ namespace world {
 
                     glm::ivec2 playerChunkPos = glm::floor(playerPosition / (float)CHUNK_WIDTH);
 
-                    for (int layer = 0; layer <= renderDistance; ++layer) {
-                        if (layer == 0) {
-                            glm::ivec2 chunkPos = playerChunkPos;
-                            if (!world::chunkRegistry::exists(chunkPos)) { assignWork(chunkPos); }
-                        } 
-                        else {
-                            for (int x = -layer; x <= layer; ++x) {
-                                for (int y = -layer; y <= layer; ++y) {
-                                    if (std::abs(x) != layer && std::abs(y) != layer) { continue; }
-                                    
-                                    glm::ivec2 chunkPos = playerChunkPos + glm::ivec2(x, y);
-                                    
-                                    if (!world::chunkRegistry::exists(chunkPos)) { assignWork(chunkPos, workType::addChunk); }
-                                }
+                    // Collect all candidate positions within a circle, then sort
+                    // closest-first so the worker generates nearest chunks first.
+                    std::vector<glm::ivec2> candidates;
+                    candidates.reserve((2 * renderDistance + 1) * (2 * renderDistance + 1));
+
+                    for (int x = -renderDistance; x <= renderDistance; ++x) {
+                        for (int y = -renderDistance; y <= renderDistance; ++y) {
+                            // Use squared Euclidean distance for a circular boundary
+                            if (x * x + y * y > renderDistance * renderDistance) { continue; }
+
+                            glm::ivec2 chunkPos = playerChunkPos + glm::ivec2(x, y);
+                            if (!world::chunkRegistry::exists(chunkPos)) {
+                                candidates.push_back(chunkPos);
                             }
                         }
+                    }
+
+                    // Sort by squared distance so nearest chunks are queued first
+                    std::sort(candidates.begin(), candidates.end(),
+                        [&playerChunkPos](const glm::ivec2& a, const glm::ivec2& b) {
+                            int dax = a.x - playerChunkPos.x, day = a.y - playerChunkPos.y;
+                            int dbx = b.x - playerChunkPos.x, dby = b.y - playerChunkPos.y;
+                            return (dax * dax + day * day) < (dbx * dbx + dby * dby);
+                        });
+
+                    for (const auto& chunkPos : candidates) {
+                        assignWork(chunkPos, workType::addChunk);
                     }
                 }
 
@@ -100,9 +113,9 @@ namespace world {
                     for (const auto& [chunkPos, chunk] : chunkRegistry::registry) {
                         int dx = chunkPos.x - playerChunkPos.x;
                         int dy = chunkPos.y - playerChunkPos.y;
-                        int manhattanDist = std::max(std::abs(dx), std::abs(dy));
 
-                        if (manhattanDist > renderDistance) {
+                        // Euclidean (circular) remove boundary — matches the circular load boundary
+                        if (dx * dx + dy * dy > renderDistance * renderDistance) {
                             assignWork(chunkPos, workType::removeChunk);
                         }
                     }
@@ -147,10 +160,10 @@ namespace world {
                             glm::ivec2 currentPlayerChunkPos = glm::floor(currentPlayerPosition / (float)CHUNK_WIDTH);
                             int dx = chunkPos.x - currentPlayerChunkPos.x;
                             int dy = chunkPos.y - currentPlayerChunkPos.y;
-                            int manhattanDist = std::max(std::abs(dx), std::abs(dy));
 
-                            // Skip stale add tasks — player may have moved away since it was queued
-                            if (manhattanDist > renderDistance) { continue; }
+                            // Skip stale add tasks — player may have moved away since it was queued.
+                            // Use the same circular boundary as the load/remove checks.
+                            if (dx * dx + dy * dy > renderDistance * renderDistance) { continue; }
                                 
                             Chunk* chunk = worldGenerator->generate(chunkPos, true);
 
@@ -247,4 +260,4 @@ namespace world {
     };
 }
 
-#endif // CHUNK_WORK_ASSIGNER_HEADER
+#endif // CHUNK_WORKER_HEADER
