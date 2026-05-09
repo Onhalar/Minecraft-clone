@@ -36,6 +36,7 @@ namespace world {
             static inline bool shouldTerminate = false;
             static inline glm::fvec3 currentPlayerPosition;
 
+
             static inline std::thread workerThread;
 
                 static bool assignWork(glm::ivec2 chunkPosition, workType type = workType::addChunk) {
@@ -70,7 +71,6 @@ namespace world {
                     currentPlayerPosition = playerPosition;
 
                     glm::ivec2 playerChunkPos = glm::floor(playerPosition / (float)CHUNK_WIDTH);
-                    float radiusSq = (float)renderDistance * (float)renderDistance;
 
                     for (int layer = 0; layer <= renderDistance; ++layer) {
                         if (layer == 0) {
@@ -84,9 +84,6 @@ namespace world {
                                     
                                     glm::ivec2 chunkPos = playerChunkPos + glm::ivec2(x, y);
                                     
-                                    float distSq = (float)(x * x + y * y);
-                                    if (distSq > radiusSq) { continue; }
-                                    
                                     if (!world::chunkRegistry::exists(chunkPos)) { assignWork(chunkPos, workType::addChunk); }
                                 }
                             }
@@ -98,15 +95,14 @@ namespace world {
                     currentPlayerPosition = playerPosition;
 
                     glm::ivec2 playerChunkPos = glm::floor(playerPosition / (float)CHUNK_WIDTH);
-                    float radiusSq = (float)(renderDistance * renderDistance);
 
                     std::lock_guard<std::mutex> lock(chunkRegistry::registryMutex);
                     for (const auto& [chunkPos, chunk] : chunkRegistry::registry) {
-                        float dx = (float)(chunkPos.x - playerChunkPos.x);
-                        float dy = (float)(chunkPos.y - playerChunkPos.y);
-                        float distSq = dx * dx + dy * dy;
+                        int dx = chunkPos.x - playerChunkPos.x;
+                        int dy = chunkPos.y - playerChunkPos.y;
+                        int manhattanDist = std::max(std::abs(dx), std::abs(dy));
 
-                        if (distSq > radiusSq) {
+                        if (manhattanDist > renderDistance) {
                             assignWork(chunkPos, workType::removeChunk);
                         }
                     }
@@ -149,18 +145,77 @@ namespace world {
 
                         if (type == workType::addChunk) {
                             glm::ivec2 currentPlayerChunkPos = glm::floor(currentPlayerPosition / (float)CHUNK_WIDTH);
-                            float dx = (float)(chunkPos.x - currentPlayerChunkPos.x);
-                            float dy = (float)(chunkPos.y - currentPlayerChunkPos.y);
-                            float distSq = dx * dx + dy * dy;
-                            float radiusSq = (float)renderDistance * (float)renderDistance;
+                            int dx = chunkPos.x - currentPlayerChunkPos.x;
+                            int dy = chunkPos.y - currentPlayerChunkPos.y;
+                            int manhattanDist = std::max(std::abs(dx), std::abs(dy));
 
                             // Skip stale add tasks — player may have moved away since it was queued
-                            if (distSq > radiusSq) { continue; }
+                            if (manhattanDist > renderDistance) { continue; }
                                 
-                            Chunk* chunk = worldGenerator->generate(chunkPos, false);
+                            Chunk* chunk = worldGenerator->generate(chunkPos, true);
 
                             if (chunk) {
+                                
+                                if (chunkRegistry::exists({chunkPos.x, chunkPos.y - 1})) {
+
+                                    chunkRegistry::registryMutex.lock();
+                                    Chunk* neighbour = chunkRegistry::registry[{chunkPos.x, chunkPos.y - 1}];
+                                    chunkRegistry::registryMutex.unlock();
+
+                                    neighbour->regenerateSideIntermideateData(ChunkSides::front);
+                                    neighbour->stitchMesh();
+
+                                    if (neighbour->mesh && !neighbour->mesh->empty()) {
+                                        std::lock_guard<std::mutex> lock(workerMutex);
+                                        readyToUpload.push_back(neighbour);
+                                    }
+                                }
+                                if (chunkRegistry::exists({chunkPos.x, chunkPos.y + 1})) {
+
+                                    chunkRegistry::registryMutex.lock();
+                                    Chunk* neighbour = chunkRegistry::registry[{chunkPos.x, chunkPos.y + 1}];
+                                    chunkRegistry::registryMutex.unlock();
+
+                                    neighbour->regenerateSideIntermideateData(ChunkSides::back);
+                                    neighbour->stitchMesh();
+
+                                    if (neighbour->mesh && !neighbour->mesh->empty()) {
+                                        std::lock_guard<std::mutex> lock(workerMutex);
+                                        readyToUpload.push_back(neighbour);
+                                    }
+                                }
+                                if (chunkRegistry::exists({chunkPos.x + 1, chunkPos.y})) {
+
+                                    chunkRegistry::registryMutex.lock();
+                                    Chunk* neighbour = chunkRegistry::registry[{chunkPos.x + 1, chunkPos.y}];
+                                    chunkRegistry::registryMutex.unlock();
+
+                                    neighbour->regenerateSideIntermideateData(ChunkSides::left);
+                                    neighbour->stitchMesh();
+
+                                    if (neighbour->mesh && !neighbour->mesh->empty()) {
+                                        std::lock_guard<std::mutex> lock(workerMutex);
+                                        readyToUpload.push_back(neighbour);
+                                    }
+                                }
+                                if (chunkRegistry::exists({chunkPos.x - 1, chunkPos.y})) {
+
+                                    chunkRegistry::registryMutex.lock();
+                                    Chunk* neighbour = chunkRegistry::registry[{chunkPos.x - 1, chunkPos.y}];
+                                    chunkRegistry::registryMutex.unlock();
+
+                                    neighbour->regenerateSideIntermideateData(ChunkSides::right);
+                                    neighbour->stitchMesh();
+
+                                    if (neighbour->mesh && !neighbour->mesh->empty()) {
+                                        std::lock_guard<std::mutex> lock(workerMutex);
+                                        readyToUpload.push_back(neighbour);
+                                    }
+                                }
+
+                                chunk->generateIntermediateData();
                                 chunk->stitchMesh();
+
 
                                 if (chunk->mesh && !chunk->mesh->empty()) {
                                     std::lock_guard<std::mutex> lock(workerMutex);

@@ -18,6 +18,7 @@
 
 #include <block.hpp>
 
+
 namespace world {
 
     // hash function for glm::ivec2
@@ -36,20 +37,54 @@ namespace world {
     #define CHUNK_HEIGHT 255
     #define CHUNK_WIDTH 16
 
-
+    enum ChunkSides: unsigned char {
+        front = 0b00000001,
+        back  = 0b00000010,
+        left  = 0b00000100,
+        right = 0b00001000
+    };
 
     // entry in intermediate data
     struct visibleBlock {
         std::array<unsigned short int, 3> localPosition = {0u, 0u, 0u};
-        unsigned char flags = 0; // eg. top and bottom visible
+        unsigned char flags = 0;
         Block* origin;
 
-        visibleBlock(Block* origin, const std::array<unsigned short int, 3>& localPosition): origin(origin), localPosition(localPosition) {}
+        visibleBlock(Block* origin, const std::array<unsigned short int, 3>& localPosition)
+            : origin(origin), localPosition(localPosition) {}
+
+        // Move constructor: transfer ownership
+        visibleBlock(visibleBlock&& other) noexcept
+            : localPosition(other.localPosition), flags(other.flags), origin(other.origin) {
+            other.origin = nullptr;  // Source no longer owns the pointer
+            if (origin) { origin->acessPointer = this; }
+        }
+
+        // Move assignment
+        visibleBlock& operator=(visibleBlock&& other) noexcept {
+            if (this != &other) {
+                // Release current ownership
+                if (origin) { origin->acessPointer = nullptr; }
+                localPosition = other.localPosition;
+                flags = other.flags;
+                origin = other.origin;
+                other.origin = nullptr;
+                if (origin) { origin->acessPointer = this; }
+            }
+            return *this;
+        }
+
+        // No copying
+        visibleBlock(const visibleBlock&) = delete;
+        visibleBlock& operator=(const visibleBlock&) = delete;
+
         ~visibleBlock() {
-            origin->acessPointer = nullptr;
+            if (origin) {
+                origin->acessPointer = nullptr;
+            }
             origin = nullptr;
         }
-    }; 
+    };
 
 
 
@@ -61,7 +96,7 @@ namespace world {
 
             // check whether the block is solid and acessable
             bool isBlock(const short x, const short y, const unsigned short z, const bool checkSurroundingChunks);
-            void updateFlag(Block* block, const unsigned char flag, std::array<unsigned short, 3> localPosition);
+            void updateFlag(Block* block, const unsigned char flag, std::array<unsigned short, 3> localPosition, const bool removeFlag);
             void scaleAndApplyVertice(const GLfloat vertX, const GLfloat vertY, const GLfloat vertZ, const std::array<unsigned short int, 3>& localPosition);
             void scaleAndApplyUVs(const GLfloat UVx, const GLfloat UVy, const glm::fvec4 UVdata);
             void addSideToMesh(const unsigned char& sideFlag, mesh::meshData* side, const std::array<unsigned short int, 3>& localPosition);
@@ -74,11 +109,11 @@ namespace world {
             BlockData blockData;
             mesh::meshData* mesh = nullptr;
             std::vector<visibleBlock> visibleBlockData;
-            bool layerBlockPresence[CHUNK_HEIGHT]; // if a block is present in a layer
+            bool layerBlockPresence[CHUNK_HEIGHT] = {}; // if a block is present in a layer
             bool baked = false;
 
-            Chunk(glm::vec2 position, const bool registerChunk = true): position(position) { if (registerChunk) this->registerChunk(position); }
-            Chunk(const bool registerChunk = true): position(glm::vec2(0.0f)) { if (registerChunk) this->registerChunk(position); }
+            Chunk(glm::ivec2 position, const bool registerChunk = true): position(position) { if (registerChunk) this->registerChunk(position); }
+            Chunk(const bool registerChunk = true): position(glm::ivec2(0, 0)) { if (registerChunk) this->registerChunk(position); }
             Chunk(const Chunk& master, const bool registerChunk = true): position(master.position), blockData(master.blockData), mesh(new mesh::meshData(*master.mesh)) { if (registerChunk) this->registerChunk(position); }
 
             ~Chunk() {
@@ -96,6 +131,8 @@ namespace world {
             
             // generates visible block data - necesery for stitching the mesh
             void generateIntermediateData();
+
+            void regenerateSideIntermideateData(const ChunkSides& side);
 
             void updateIntermediateData(const unsigned char x, const unsigned char y, const unsigned short& z, const bool ignoreBadCoord);
 
@@ -190,6 +227,8 @@ namespace world {
 
 
 
+
+
     // Helper functions:
 
     // 0,0 for current chunk, anything other is surrounding
@@ -222,24 +261,24 @@ namespace world {
             auto it = chunkRegistry::registry.find(neighbourChunkPos);
             if (it == chunkRegistry::registry.end() || !it->second) { return false; }
 
-            unsigned char altX = x - blockChunkVector.x * CHUNK_WIDTH;
-            unsigned char altY = y - blockChunkVector.y * CHUNK_WIDTH;
+            char altX = x - blockChunkVector.x * CHUNK_WIDTH;
+            char altY = y - blockChunkVector.y * CHUNK_WIDTH;
             return it->second->getBlock(altX, altY, z).type != BlockType::air;
         }
 
         return getBlock(x, y, z).type != BlockType::air;
     }
 
-    inline void Chunk::updateFlag(Block* block, const unsigned char flag, std::array<unsigned short, 3> localPosition) {
+    inline void Chunk::updateFlag(Block* block, const unsigned char flag, std::array<unsigned short, 3> localPosition, const bool removeFlag = false) {
         if (block->acessPointer) {
-            ((visibleBlock*)block->acessPointer)->flags |= flag;
+            if (removeFlag) { ((visibleBlock*)block->acessPointer)->flags &= ~flag; }
+            else { ((visibleBlock*)block->acessPointer)->flags |= flag; }
         }
-        else {
+        else if (!removeFlag) {
             visibleBlockData.push_back(visibleBlock(block, localPosition));
             auto entry = visibleBlockData.rbegin();
             entry->flags |= flag;
             block->acessPointer = &(*entry);
-
         }
     }
 
@@ -286,41 +325,54 @@ namespace world {
 
 
     inline void Chunk::updateBlockMeshFlags(const unsigned char x, const unsigned char y, const unsigned short z, const unsigned char ignoreFlags = 0u, const unsigned char forceFlags = 0u) {
-        if (getBlock(x, y, z).type == BlockType::air) { return; }
-        if (getBlock(x, y, z).acessPointer) {
-            if (((visibleBlock*)getBlock(x, y, z).acessPointer)->flags) {
-                ((visibleBlock*)getBlock(x, y, z).acessPointer)->flags = 0u;
-            }
-        }
-
+        Block* currentBlock = &getBlock(x, y, z);
+        
+        if (currentBlock->type == BlockType::air) { return; }
+        
         // above
-        if (!(ignoreFlags & blockRenderFlag::RENDER_TOP) | (forceFlags & blockRenderFlag::RENDER_TOP)) {
-            if (!isBlock(x, y, z + 1)) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_TOP, {x, y, z}); }
+        if (!(ignoreFlags & blockRenderFlag::RENDER_TOP) || (forceFlags & blockRenderFlag::RENDER_TOP)) {
+            if (!isBlock(x, y, z + 1)) { updateFlag(currentBlock, blockRenderFlag::RENDER_TOP, {x, y, z}); }
+            else { updateFlag(currentBlock, blockRenderFlag::RENDER_TOP, {x, y, z}, true); }
         }
 
         // below
-        if (!(ignoreFlags & blockRenderFlag::RENDER_BOTTOM) | (forceFlags & blockRenderFlag::RENDER_BOTTOM)) {
-            if (!isBlock(x, y, z - 1) || z == 0 /* fixes underflow */) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_BOTTOM, {x, y, z}); }
+        if (!(ignoreFlags & blockRenderFlag::RENDER_BOTTOM) || (forceFlags & blockRenderFlag::RENDER_BOTTOM)) {
+            if (!isBlock(x, y, z - 1) || z == 0 /* fixes underflow */) { updateFlag(currentBlock, blockRenderFlag::RENDER_BOTTOM, {x, y, z}); }
+            else { updateFlag(currentBlock, blockRenderFlag::RENDER_BOTTOM, {x, y, z}, true); }
         }
 
         // front
-        if (!(ignoreFlags & blockRenderFlag::RENDER_FRONT) | (forceFlags & blockRenderFlag::RENDER_FRONT)) {
-            if (!isBlock(x, (short)y - 1, z)) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_FRONT, {x, y, z}); }
+        if (!(ignoreFlags & blockRenderFlag::RENDER_FRONT) || (forceFlags & blockRenderFlag::RENDER_FRONT)) {
+            if (!isBlock(x, y + 1, z)) { updateFlag(currentBlock, blockRenderFlag::RENDER_FRONT, {x, y, z}); }
+            else { updateFlag(currentBlock, blockRenderFlag::RENDER_FRONT, {x, y, z}, true); }
         }
 
         // back
-        if (!(ignoreFlags & blockRenderFlag::RENDER_BACK) | (forceFlags & blockRenderFlag::RENDER_BACK)) {
-            if (!isBlock(x, y + 1, z)) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_BACK, {x, y, z}); }
+        if (!(ignoreFlags & blockRenderFlag::RENDER_BACK) || (forceFlags & blockRenderFlag::RENDER_BACK)) {
+            if (!isBlock(x, (short)y - 1, z)) { updateFlag(currentBlock, blockRenderFlag::RENDER_BACK, {x, y, z}); }
+            else { updateFlag(currentBlock, blockRenderFlag::RENDER_BACK, {x, y, z}, true); }
         }
 
         // left
-        if (!(ignoreFlags & blockRenderFlag::RENDER_LEFT) | (forceFlags & blockRenderFlag::RENDER_LEFT)) {
-            if (!isBlock((short)x - 1, y, z)) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_LEFT, {x, y, z}); }
+        if (!(ignoreFlags & blockRenderFlag::RENDER_LEFT) || (forceFlags & blockRenderFlag::RENDER_LEFT)) {
+            if (!isBlock((short)x - 1, y, z)) { updateFlag(currentBlock, blockRenderFlag::RENDER_LEFT, {x, y, z}); }
+            else { updateFlag(currentBlock, blockRenderFlag::RENDER_LEFT, {x, y, z}, true); }
         }
 
         // right
-        if (!(ignoreFlags & blockRenderFlag::RENDER_RIGHT) | (forceFlags & blockRenderFlag::RENDER_RIGHT)) {
-            if (!isBlock(x + 1, y, z)) { updateFlag(&getBlock(x, y, z), blockRenderFlag::RENDER_RIGHT, {x, y, z}); }
+        if (!(ignoreFlags & blockRenderFlag::RENDER_RIGHT) || (forceFlags & blockRenderFlag::RENDER_RIGHT)) {
+            if (!isBlock(x + 1, y, z)) { updateFlag(currentBlock, blockRenderFlag::RENDER_RIGHT, {x, y, z}); }
+            else { updateFlag(currentBlock, blockRenderFlag::RENDER_RIGHT, {x, y, z}, true); }
+        }
+
+        if ((visibleBlock*)currentBlock->acessPointer && !((visibleBlock*)currentBlock->acessPointer)->flags) {
+            size_t idx = (visibleBlock*)currentBlock->acessPointer - visibleBlockData.data();
+            if (idx != visibleBlockData.size() - 1) {
+                visibleBlockData.back().origin->acessPointer = &visibleBlockData[idx];
+                visibleBlockData[idx] = std::move(visibleBlockData.back());
+            }
+            visibleBlockData.pop_back();
+            currentBlock->acessPointer = nullptr;
         }
     }
 
@@ -331,7 +383,7 @@ namespace world {
             for (unsigned int x = 0; x < CHUNK_WIDTH; ++x) {
                 if (layerBlockPresence[z]) { break; }
                 for (unsigned int y = 0; y < CHUNK_WIDTH; ++y) {
-                    if (getBlock(x, y, z).type == BlockType::solid) { layerBlockPresence[z] = true; break; }
+                    if (getBlock(x, y, z).type != BlockType::air) { layerBlockPresence[z] = true; break; }
                 }
             }
         }
@@ -345,7 +397,7 @@ namespace world {
         if (!baked) { bakeChunk(); }
 
         for (unsigned short int z = 0; z < CHUNK_HEIGHT; ++z) {
-            if (!(layerBlockPresence[z] | !baked)) { continue; }
+            if (!(layerBlockPresence[z])) { continue; }
 
             for (unsigned char x = 0; x < CHUNK_WIDTH; ++x) {
                 for (unsigned char y = 0; y < CHUNK_WIDTH; ++y) {
@@ -367,13 +419,9 @@ namespace world {
 
     // stitches the blocks in the current chunk into a single large mesh
     inline mesh::meshData* Chunk::stitchMesh() {
-        if (mesh) {
-            mesh->vertices.clear();
-            mesh->indices.clear();
-        }
-        else {
-            mesh = new mesh::meshData;
-        }
+
+        if (mesh) { mesh->clear(); }
+        else { mesh = new mesh::meshData; }
 
         if (visibleBlockData.empty()) {
             if (baked) {
@@ -428,6 +476,54 @@ namespace world {
             chunkRegistry::visibleChunks.push_back(mesh->meshID);
 
             return mesh->meshID;
+        }
+
+        inline void Chunk::regenerateSideIntermideateData(const ChunkSides& side) {
+            if (!baked) { bakeChunk(); }
+            switch (side) {
+                case ChunkSides::front:
+                    if (!chunkRegistry::exists(position + glm::ivec2(0, 1))) { break; }
+                    for (unsigned short int z = 0; z < CHUNK_HEIGHT; ++z) {
+                        if (!layerBlockPresence[z]) { continue; }
+                        for (unsigned char x = 0; x < CHUNK_WIDTH; ++x) {
+                            updateBlockMeshFlags(x, CHUNK_WIDTH - 1, z, (unsigned char)-1 & ~blockRenderFlag::RENDER_FRONT);
+                        }
+                    }
+                    break;
+
+                case ChunkSides::back:
+                    // New neighbour arrived at position + (0, +1); re-check this chunk's back face (y == CHUNK_WIDTH-1)
+                    if (!chunkRegistry::exists(position + glm::ivec2(0, -1))) { break; }
+                    for (unsigned short int z = 0; z < CHUNK_HEIGHT; ++z) {
+                        if (!layerBlockPresence[z]) { continue; }
+                        for (unsigned char x = 0; x < CHUNK_WIDTH; ++x) {
+                            updateBlockMeshFlags(x, 0, z, (unsigned char)-1 & ~blockRenderFlag::RENDER_BACK);
+                        }
+                    }
+                    break;
+
+                case ChunkSides::left:
+                    // already correct
+                    if (!chunkRegistry::exists(position + glm::ivec2(-1, 0))) { break; }
+                    for (unsigned short int z = 0; z < CHUNK_HEIGHT; ++z) {
+                        if (!layerBlockPresence[z]) { continue; }
+                        for (unsigned char y = 0; y < CHUNK_WIDTH; ++y) {
+                            updateBlockMeshFlags(0, y, z, (unsigned char)-1 & ~blockRenderFlag::RENDER_LEFT);
+                        }
+                    }
+                    break;
+
+                case ChunkSides::right:
+                    // already correct
+                    if (!chunkRegistry::exists(position + glm::ivec2(1, 0))) { break; }
+                    for (unsigned short int z = 0; z < CHUNK_HEIGHT; ++z) {
+                        if (!layerBlockPresence[z]) { continue; }
+                        for (unsigned char y = 0; y < CHUNK_WIDTH; ++y) {
+                            updateBlockMeshFlags(CHUNK_WIDTH - 1, y, z, (unsigned char)-1 & ~blockRenderFlag::RENDER_RIGHT);
+                        }
+                    }
+                    break;
+            }
         }
 
 }

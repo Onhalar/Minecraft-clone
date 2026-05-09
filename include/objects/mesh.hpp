@@ -112,32 +112,13 @@ namespace mesh {
     class defaults {
         public:
         class Cube {
-            public:
+            public:                
                 inline static meshData front = {
                     {
-                        -0.5f, -0.5f, -0.5f,  // 0 - front bottom left
-                        0.5f, -0.5f, -0.5f,  // 1 - front bottom right
-                        0.5f, -0.5f,  0.5f,  // 2 - front top right
-                        -0.5f, -0.5f,  0.5f   // 3 - front top left
-                    },
-                    {
-                        0, 1, 2,
-                        2, 3, 0
-                    },
-                    {
-                        0.0f, 0.0f,  // 0 - bottom left
-                        1.0f, 0.0f,  // 1 - bottom right
-                        1.0f, 1.0f,  // 2 - top right
-                        0.0f, 1.0f   // 3 - top left
-                    }
-                };
-                
-                inline static meshData back = {
-                    {
-                        0.5f,  0.5f, -0.5f,  // 0 - back bottom right
-                        -0.5f,  0.5f, -0.5f,  // 1 - back bottom left
-                        -0.5f,  0.5f,  0.5f,  // 2 - back top left
-                        0.5f,  0.5f,  0.5f   // 3 - back top right
+                        0.5f,  0.5f, -0.5f,  // 0 - front bottom right
+                        -0.5f,  0.5f, -0.5f,  // 1 - front bottom left
+                        -0.5f,  0.5f,  0.5f,  // 2 - front top left
+                        0.5f,  0.5f,  0.5f   // 3 - front top right
                     },
                     {
                         0, 1, 2,
@@ -148,6 +129,25 @@ namespace mesh {
                         1.0f, 0.0f,  // 1 - bottom left
                         1.0f, 1.0f,  // 2 - top left
                         0.0f, 1.0f   // 3 - top right
+                    }
+                };
+
+                inline static meshData back = {
+                    {
+                        -0.5f, -0.5f, -0.5f,  // 0 - back bottom left
+                        0.5f, -0.5f, -0.5f,  // 1 - back bottom right
+                        0.5f, -0.5f,  0.5f,  // 2 - back top right
+                        -0.5f, -0.5f,  0.5f   // 3 - back top left
+                    },
+                    {
+                        0, 1, 2,
+                        2, 3, 0
+                    },
+                    {
+                        0.0f, 0.0f,  // 0 - bottom left
+                        1.0f, 0.0f,  // 1 - bottom right
+                        1.0f, 1.0f,  // 2 - top right
+                        0.0f, 1.0f   // 3 - top left
                     }
                 };
                 
