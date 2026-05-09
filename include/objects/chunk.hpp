@@ -331,37 +331,37 @@ namespace world {
         
         // above
         if (!(ignoreFlags & blockRenderFlag::RENDER_TOP) || (forceFlags & blockRenderFlag::RENDER_TOP)) {
-            if (!isBlock(x, y, z + 1)) { updateFlag(currentBlock, blockRenderFlag::RENDER_TOP, {x, y, z}); }
+            if (!isBlock(x, y, z + 1) || (forceFlags & blockRenderFlag::RENDER_TOP)) { updateFlag(currentBlock, blockRenderFlag::RENDER_TOP, {x, y, z}); }
             else { updateFlag(currentBlock, blockRenderFlag::RENDER_TOP, {x, y, z}, true); }
         }
 
         // below
         if (!(ignoreFlags & blockRenderFlag::RENDER_BOTTOM) || (forceFlags & blockRenderFlag::RENDER_BOTTOM)) {
-            if (!isBlock(x, y, z - 1) || z == 0 /* fixes underflow */) { updateFlag(currentBlock, blockRenderFlag::RENDER_BOTTOM, {x, y, z}); }
+            if (!isBlock(x, y, z - 1) || (forceFlags & blockRenderFlag::RENDER_BOTTOM)) { updateFlag(currentBlock, blockRenderFlag::RENDER_BOTTOM, {x, y, z}); }
             else { updateFlag(currentBlock, blockRenderFlag::RENDER_BOTTOM, {x, y, z}, true); }
         }
 
         // front
         if (!(ignoreFlags & blockRenderFlag::RENDER_FRONT) || (forceFlags & blockRenderFlag::RENDER_FRONT)) {
-            if (!isBlock(x, y + 1, z)) { updateFlag(currentBlock, blockRenderFlag::RENDER_FRONT, {x, y, z}); }
+            if (!isBlock(x, y + 1, z) || (forceFlags & blockRenderFlag::RENDER_FRONT)) { updateFlag(currentBlock, blockRenderFlag::RENDER_FRONT, {x, y, z}); }
             else { updateFlag(currentBlock, blockRenderFlag::RENDER_FRONT, {x, y, z}, true); }
         }
 
         // back
         if (!(ignoreFlags & blockRenderFlag::RENDER_BACK) || (forceFlags & blockRenderFlag::RENDER_BACK)) {
-            if (!isBlock(x, (short)y - 1, z)) { updateFlag(currentBlock, blockRenderFlag::RENDER_BACK, {x, y, z}); }
+            if (!isBlock(x, (short)y - 1, z) || (forceFlags & blockRenderFlag::RENDER_BACK)) { updateFlag(currentBlock, blockRenderFlag::RENDER_BACK, {x, y, z}); }
             else { updateFlag(currentBlock, blockRenderFlag::RENDER_BACK, {x, y, z}, true); }
         }
 
         // left
         if (!(ignoreFlags & blockRenderFlag::RENDER_LEFT) || (forceFlags & blockRenderFlag::RENDER_LEFT)) {
-            if (!isBlock((short)x - 1, y, z)) { updateFlag(currentBlock, blockRenderFlag::RENDER_LEFT, {x, y, z}); }
+            if (!isBlock((short)x - 1, y, z) || (forceFlags & blockRenderFlag::RENDER_LEFT)) { updateFlag(currentBlock, blockRenderFlag::RENDER_LEFT, {x, y, z}); }
             else { updateFlag(currentBlock, blockRenderFlag::RENDER_LEFT, {x, y, z}, true); }
         }
 
         // right
         if (!(ignoreFlags & blockRenderFlag::RENDER_RIGHT) || (forceFlags & blockRenderFlag::RENDER_RIGHT)) {
-            if (!isBlock(x + 1, y, z)) { updateFlag(currentBlock, blockRenderFlag::RENDER_RIGHT, {x, y, z}); }
+            if (!isBlock(x + 1, y, z) || (forceFlags & blockRenderFlag::RENDER_RIGHT)) { updateFlag(currentBlock, blockRenderFlag::RENDER_RIGHT, {x, y, z}); }
             else { updateFlag(currentBlock, blockRenderFlag::RENDER_RIGHT, {x, y, z}, true); }
         }
 
