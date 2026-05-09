@@ -18,7 +18,7 @@
 #include <shader.hpp>
 
 class Camera {
-    public:
+    public:        
         glm::mat4 projectionMatrix = glm::mat4(1.0f);
         glm::mat4 viewMatrix = glm::mat4(1.0f);
 
@@ -29,7 +29,6 @@ class Camera {
         float yaw = 90.0f;
         float pitch = 0.0f;
 
-        float cameraSpeed = 55.0f;
         float sensitivity = 175.0f;
 
         float nearClipPlane = 0.1f;
@@ -83,31 +82,6 @@ class Camera {
                 updateOrientation();
 
                 glfwSetCursorPos(window, (width / 2), (height / 2));
-
-                float FdeltaTime = (float)deltaTime;
-
-                glm::vec3 forward = glm::normalize(glm::vec3(orientation.x, orientation.y, 0.0f));
-                glm::vec3 right = glm::normalize(glm::cross(forward, UP));
-
-                if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-                    position += forward * cameraSpeed * FdeltaTime;
-                }
-                if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-                    position -= forward * cameraSpeed * FdeltaTime;
-                }
-                if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-                    position -= right * cameraSpeed * FdeltaTime;
-                }
-                if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-                    position += right * cameraSpeed * FdeltaTime;
-                }
-
-                if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-                    position += UP * cameraSpeed * FdeltaTime;
-                }
-                if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS) {
-                    position -= UP * cameraSpeed * FdeltaTime;
-                }
             }
         }
 
@@ -163,8 +137,21 @@ class Camera {
             this->farClipPlane = farClipPlane;
         }
 
-        void updateCameraValues(const float& renderDistance, const float& sensitivity, const float& speed, const float& fovDeg) {
-            this->farClipPlane = renderDistance; this->sensitivity = sensitivity, this->cameraSpeed = speed; this->FOVdeg = fovDeg;
+        void updateCameraProjection(const int& projectionWidth, const int& projectionHeight) {
+            viewMatrix = glm::lookAt(position, position + orientation, UP);
+            projectionMatrix = glm::perspective(glm::radians(FOVdeg), width/(float)height, nearClipPlane, farClipPlane);
+        }
+
+        void updateCameraProjection(const int& projectionWidth, const int& projectionHeight, const float& nearClipPlane, const float& farClipPlane) {
+            viewMatrix = glm::lookAt(position, position + orientation, UP);
+            projectionMatrix = glm::perspective(glm::radians(FOVdeg), width/(float)height, nearClipPlane, farClipPlane);
+
+            this->nearClipPlane = nearClipPlane;
+            this->farClipPlane = farClipPlane;
+        }
+
+        void updateCameraValues(const float& renderDistance, const float& sensitivity, const float& fovDeg) {
+            this->farClipPlane = renderDistance; this->sensitivity = sensitivity, this->FOVdeg = fovDeg;
         }
 };
 

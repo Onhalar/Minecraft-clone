@@ -1,10 +1,12 @@
 #include <core.hpp>
 #include <config.hpp>
+#include <cstdlib>
 #include <globals.hpp>
-#include <mutex>
+#include <random>
 #include <thread>
 #include <types.hpp>
 #include <render.hpp>
+#include <world.hpp>
 
 #include <debug.hpp>
 #include <FormatConsole.hpp>
@@ -15,7 +17,9 @@
 #include <thread>
 #include <filesystem>
 
+#include "camera.hpp"
 #include "chunk.hpp"
+#include "player.hpp"
 #include "setup/setupRender.cpp"
 
 #include "render.cpp"
@@ -47,15 +51,19 @@ int main(int argc, char **argv) {
 
     setupOpenGL();
 
-    renderSetup();
+    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+    WorldSettings::seed = rand();
     
     world::worldGenerator = new world::chunkGenerator();
+
+    if (!player) { player = (currentCamera ? new world::player(currentCamera) : new world::player()); }
 
     mainLoop();
 
     cleanup();
 
     glfwDestroyWindow(mainWindow);
+
     glfwTerminate();
 
     return 0;
@@ -160,20 +168,17 @@ void mainLoop() {
 
         if (!isMinimized) { // Custom Actions
 
-            currentCamera->handleInputs(mainWindow);
-            for (auto [key, shader] : Shaders) {
-                currentCamera->updateProjection(shader);
-            }
-
             // CHUNKS
             if (frameCount % 5 == 0) { // check for new chunks every 10 frames (adjust as needed)
-                world::chunkWorker::checkForFarChunks(currentCamera->position);
+                world::chunkWorker::checkForFarChunks(player->position);
             }
             else if (frameCount % 5 == 2) { // check for far chunks every 10 frames, offset from new chunk check (adjust as needed)
-                world::chunkWorker::checkForNewChunks(currentCamera->position);
+                world::chunkWorker::checkForNewChunks(player->position);
             }
 
             world::chunkWorker::uploadQueuedMeshes();
+
+            player->main();
             
             render();
 
@@ -215,6 +220,8 @@ void mainLoop() {
 
 void cleanup() {
 
+    if (player) { delete player; }
+
     world::chunkWorker::shouldTerminate = true;
     {
         //std::lock_guard<std::mutex> lock(world::chunkWorker::workerMutex);
@@ -226,7 +233,6 @@ void cleanup() {
     }
     
     if (mainTextureAtlas) { delete mainTextureAtlas; mainTextureAtlas = nullptr; }
-    if (currentCamera) { delete currentCamera; currentCamera = nullptr; }
 
     for (auto& [key, shader] : Shaders) { if (shader) { delete shader; shader = nullptr; } }
     
@@ -235,4 +241,6 @@ void cleanup() {
     world::chunkRegistry::deregisterAll();
 
     if (chunkRenderer) { delete chunkRenderer; chunkRenderer = nullptr; }
+
+    for (auto camera : Cameras) { if (camera) { delete camera; } }
 }

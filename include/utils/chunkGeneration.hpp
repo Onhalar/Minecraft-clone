@@ -2,8 +2,8 @@
 #define CHUNK_GENERATION_HEADER
 
 #include "glm/fwd.hpp"
-#include <config.hpp>
 
+#include <world.hpp>
 #include <chunk.hpp>
 #include <block.hpp>
 #include <biome.hpp>
@@ -80,17 +80,15 @@ namespace world {
     // Chunk generator
     // ---------------------------------------------------------------------------
     class chunkGenerator {
-        WorldSettings   settings;
         PerlinNoise     noise;            // terrain shape noise
         PerlinNoise     temperatureNoise; // drives biome climate X axis
         PerlinNoise     humidityNoise;    // drives biome climate Y axis
 
         public:
-            chunkGenerator(WorldSettings settings = {})
-                : settings(settings)
-                , noise(settings.seed)
-                , temperatureNoise(settings.seed + 1)
-                , humidityNoise   (settings.seed + 2)
+            chunkGenerator()
+                : noise(WorldSettings::seed)
+                , temperatureNoise(WorldSettings::seed + 1)
+                , humidityNoise   (WorldSettings::seed + 2)
             {}
 
             // Generate and register a chunk at the given chunk-space position.
@@ -127,8 +125,8 @@ namespace world {
             // Sample the climate (temperature, humidity) at a world-space column.
             // Both values are in [-1, 1].
             void sampleClimate(float wx, float wy, float& outTemp, float& outHum) const {
-                outTemp = temperatureNoise.noise(wx * settings.biomeSize, wy * settings.biomeSize);
-                outHum  = humidityNoise   .noise(wx * settings.biomeSize, wy * settings.biomeSize);
+                outTemp = temperatureNoise.noise(wx * WorldSettings::biomeSize, wy * WorldSettings::biomeSize);
+                outHum  = humidityNoise   .noise(wx * WorldSettings::biomeSize, wy * WorldSettings::biomeSize);
             }
 
             // -----------------------------------------------------------------------
@@ -153,15 +151,15 @@ namespace world {
 
                 // Keep only the N closest candidates
                 std::sort(dists.begin(), dists.end());
-                if ((int)dists.size() > settings.blendCandidates) {
-                    dists.resize(settings.blendCandidates);
+                if ((int)dists.size() > WorldSettings::blendCandidates) {
+                    dists.resize(WorldSettings::blendCandidates);
                 }
 
                 // Sharpness-adjusted inverse-distance weighting.
                 // Raising to 1/sharpness pushes weight toward the closest biome
                 // as sharpness approaches 1.0, and spreads it evenly as it
                 // approaches 0.0, widening the transition zone.
-                const float exponent = 1.0f / std::max(settings.transitionSharpness, 1e-4f);
+                const float exponent = 1.0f / std::max(WorldSettings::transitionSharpness, 1e-4f);
                 std::vector<BiomeWeight> result;
                 result.reserve(dists.size());
                 float totalW = 0.0f;

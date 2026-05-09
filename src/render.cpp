@@ -1,4 +1,3 @@
-#include "chunkWorker.hpp"
 #include <core.hpp>
 #include <config.hpp>
 #include <globals.hpp>
@@ -17,16 +16,6 @@
 #include <VBO.hpp>
 #include <EBO.hpp>
 
-#include <cstdio>
-
-
-#define WORLD_WIDTH 32
-#define WORLD_LENGTH 32
-
-world::Chunk* chunks[WORLD_WIDTH * WORLD_LENGTH];
-
-void renderSetup() {
-}
 
 void render() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -57,6 +46,11 @@ void resize(GLFWwindow *window, int width, int height) {
         if (shader) {
             shader->activate();
             currentCamera->updateProjection(width, height, shader);
+
+            for (auto camera : Cameras) {
+                if (camera == currentCamera) { continue; }
+                camera->updateCameraProjection(width, height);
+            }
         }
     }
 }

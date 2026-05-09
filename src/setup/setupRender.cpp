@@ -2,6 +2,7 @@
 
 #include "mesh.hpp"
 #include "texture.hpp"
+#include "world.hpp"
 #include <config.hpp>
 #include <types.hpp>
 #include <core.hpp>
@@ -56,9 +57,9 @@ void setupShaderMetrices(Shader* shader) {
 
     shader->activate();
 
-    // Initialize the camera (make sure it's only initialized once)
     if (!currentCamera) {
-        currentCamera = new Camera(windowWidth, windowHeight, glm::vec3(0.5f, -5.0f, 75.0f));
+        if (!Cameras.empty()) { currentCamera = *Cameras.begin(); }
+        else { currentCamera = new Camera(windowWidth, windowHeight, {0.0f, 0.0f, 0.0f}); }
     }
 
     currentCamera->updateProjection(windowWidth, windowHeight, shader);
