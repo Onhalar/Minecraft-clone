@@ -28,7 +28,7 @@ namespace world {
             Camera* playerCamera;
 
             float baseSpeed = 35.0f;           // Faster acceleration to reach max speed
-            float jumpBurstSpeed = 10.5f;      // Jump gives ~1.25 blocks height
+            float jumpBurstSpeed = 8.0f;      // Jump gives ~1.25 blocks height
 
             float sprintModifier = 1.65f;
 
