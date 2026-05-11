@@ -25,5 +25,4 @@ inline std::filesystem::path projectDir("/");
 inline std::string projectPath(const std::string& path) { return (projectDir / std::filesystem::path(path)).string(); }
 inline std::string projectPath(const std::filesystem::path& path) { return (projectDir / path).string(); }
 
-
 #endif // CORE_PROJECT_HEADER

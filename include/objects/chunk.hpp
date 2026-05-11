@@ -2,7 +2,6 @@
 #define CHUNK_MANAGER_HEADER
 
 #include <algorithm>
-#include <core.hpp>
 #include <render.hpp>
 
 #include "glm/ext/vector_int2.hpp"
@@ -44,13 +43,20 @@ namespace world {
         right = 0b00001000
     };
 
+    inline glm::ivec2 getChunkPos(glm::ivec3 blockPos) {
+        return  {
+            (int)std::floor((float)blockPos.x / CHUNK_WIDTH),
+            (int)std::floor((float)blockPos.y / CHUNK_WIDTH)
+        };
+    }
+
     // entry in intermediate data
     struct visibleBlock {
-        std::array<unsigned short int, 3> localPosition = {0u, 0u, 0u};
+        std::array<short, 3> localPosition = {0u, 0u, 0u};
         unsigned char flags = 0;
         Block* origin;
 
-        visibleBlock(Block* origin, const std::array<unsigned short int, 3>& localPosition)
+        visibleBlock(Block* origin, const std::array<short, 3>& localPosition)
             : origin(origin), localPosition(localPosition) {}
 
         // Move constructor: transfer ownership
@@ -96,13 +102,13 @@ namespace world {
 
             // check whether the block is solid and acessable
             bool isBlock(const short x, const short y, const unsigned short z, const bool checkSurroundingChunks);
-            void updateFlag(Block* block, const unsigned char flag, std::array<unsigned short, 3> localPosition, const bool removeFlag);
-            void scaleAndApplyVertice(const GLfloat vertX, const GLfloat vertY, const GLfloat vertZ, const std::array<unsigned short int, 3>& localPosition);
+            void updateFlag(Block* block, const unsigned char flag, std::array<short, 3> localPosition, const bool removeFlag);
+            void scaleAndApplyVertice(const GLfloat vertX, const GLfloat vertY, const GLfloat vertZ, const std::array<short, 3>& localPosition);
             void scaleAndApplyUVs(const GLfloat UVx, const GLfloat UVy, const glm::fvec4 UVdata);
-            void addSideToMesh(const unsigned char& sideFlag, mesh::meshData* side, const std::array<unsigned short int, 3>& localPosition);
+            void addSideToMesh(const unsigned char& sideFlag, mesh::meshData* side, const std::array<short, 3>& localPosition);
 
             // updates the intermediate data of a single block; Use ignore flags to avoid unecesery checks or force flags which overpower ignore flags
-            void updateBlockMeshFlags(const unsigned char x, const unsigned char y, const unsigned short z, const unsigned char ignoreFlags, const unsigned char forceFlags);
+            void updateBlockMeshFlags(const short x, const short y, const short z, const unsigned char ignoreFlags, const unsigned char forceFlags);
 
         public:
             glm::ivec2 position = {0u, 0u}; 
@@ -134,13 +140,14 @@ namespace world {
 
             void regenerateSideIntermideateData(const ChunkSides& side);
 
-            void updateIntermediateData(const unsigned char x, const unsigned char y, const unsigned short& z, const bool ignoreBadCoord);
+            void updateBlockIntermediateData(const short x, const short y, const short& z, const bool ignoreBadCoord);
 
             // give a chunk its x, y cooridnates
             bool registerChunk(glm::ivec2);
             void deregisterChunk();
 
             inline Block& getBlock(unsigned char x, unsigned char y, unsigned short z) { return this->blockData[ x + (y << 4) + (z << 8)]; }
+            inline Block& getBlock(glm::ivec3 localBlockPos) { return this->blockData[ localBlockPos.x + (localBlockPos.y << 4) + (localBlockPos.z << 8)]; }
 
             // stitches the blocks in the current chunk into a single large mesh
             mesh::meshData* stitchMesh();
@@ -212,6 +219,11 @@ namespace world {
                 }
             }
 
+            static Chunk* getChunk(glm::ivec2 chunkPos) {
+                std::lock_guard<std::mutex> lock(registryMutex);
+                return registry[chunkPos];
+            }
+
             static bool isChunkRegistered(glm::ivec2 position) { return registry.find(position) != registry.end(); }
             // the same as isChunkRegistered
             static inline auto exists = isChunkRegistered;
@@ -269,7 +281,7 @@ namespace world {
         return getBlock(x, y, z).type != BlockType::air;
     }
 
-    inline void Chunk::updateFlag(Block* block, const unsigned char flag, std::array<unsigned short, 3> localPosition, const bool removeFlag = false) {
+    inline void Chunk::updateFlag(Block* block, const unsigned char flag, std::array<short, 3> localPosition, const bool removeFlag = false) {
         if (block->acessPointer) {
             if (removeFlag) { ((visibleBlock*)block->acessPointer)->flags &= ~flag; }
             else { ((visibleBlock*)block->acessPointer)->flags |= flag; }
@@ -282,7 +294,7 @@ namespace world {
         }
     }
 
-    inline void Chunk::scaleAndApplyVertice(const GLfloat vertX, const GLfloat vertY, const GLfloat vertZ, const std::array<unsigned short, 3>& localPosition) {
+    inline void Chunk::scaleAndApplyVertice(const GLfloat vertX, const GLfloat vertY, const GLfloat vertZ, const std::array<short, 3>& localPosition) {
         this->mesh->vertices.push_back(vertX + (float)localPosition[0] + (CHUNK_WIDTH * (float)this->position.x));    // X
         this->mesh->vertices.push_back(vertY + (float)localPosition[1] + (CHUNK_WIDTH * (float)this->position.y));    // Y
         this->mesh->vertices.push_back(vertZ + (float)localPosition[2]);                                      // Z
@@ -293,7 +305,7 @@ namespace world {
         this->mesh->uvs.push_back(UVdata.y + (UVy * UVdata.w)); // Flip Y
     }
 
-    inline void Chunk::addSideToMesh(const unsigned char& sideFlag, mesh::meshData* side, const std::array<unsigned short int, 3>& localPosition) {
+    inline void Chunk::addSideToMesh(const unsigned char& sideFlag, mesh::meshData* side, const std::array<short, 3>& localPosition) {
         size_t firstVertexIndex = this->mesh->vertices.size() / 3u; // last element + 1
         for (const auto& index : side->indices) {
             this->mesh->indices.push_back(index + firstVertexIndex);
@@ -324,7 +336,9 @@ namespace world {
     }
 
 
-    inline void Chunk::updateBlockMeshFlags(const unsigned char x, const unsigned char y, const unsigned short z, const unsigned char ignoreFlags = 0u, const unsigned char forceFlags = 0u) {
+    inline void Chunk::updateBlockMeshFlags(const short x, const short y, const short z, const unsigned char ignoreFlags = 0u, const unsigned char forceFlags = 0u) {
+        if (z >= CHUNK_HEIGHT) { return; }
+
         Block* currentBlock = &getBlock(x, y, z);
         
         if (currentBlock->type == BlockType::air) { return; }
@@ -349,13 +363,13 @@ namespace world {
 
         // back
         if (!(ignoreFlags & blockRenderFlag::RENDER_BACK) || (forceFlags & blockRenderFlag::RENDER_BACK)) {
-            if (!isBlock(x, (short)y - 1, z) || (forceFlags & blockRenderFlag::RENDER_BACK)) { updateFlag(currentBlock, blockRenderFlag::RENDER_BACK, {x, y, z}); }
+            if (!isBlock(x, y - 1, z) || (forceFlags & blockRenderFlag::RENDER_BACK)) { updateFlag(currentBlock, blockRenderFlag::RENDER_BACK, {x, y, z}); }
             else { updateFlag(currentBlock, blockRenderFlag::RENDER_BACK, {x, y, z}, true); }
         }
 
         // left
         if (!(ignoreFlags & blockRenderFlag::RENDER_LEFT) || (forceFlags & blockRenderFlag::RENDER_LEFT)) {
-            if (!isBlock((short)x - 1, y, z) || (forceFlags & blockRenderFlag::RENDER_LEFT)) { updateFlag(currentBlock, blockRenderFlag::RENDER_LEFT, {x, y, z}); }
+            if (!isBlock(x - 1, y, z) || (forceFlags & blockRenderFlag::RENDER_LEFT)) { updateFlag(currentBlock, blockRenderFlag::RENDER_LEFT, {x, y, z}); }
             else { updateFlag(currentBlock, blockRenderFlag::RENDER_LEFT, {x, y, z}, true); }
         }
 
@@ -365,13 +379,17 @@ namespace world {
             else { updateFlag(currentBlock, blockRenderFlag::RENDER_RIGHT, {x, y, z}, true); }
         }
 
+
         if ((visibleBlock*)currentBlock->acessPointer && !((visibleBlock*)currentBlock->acessPointer)->flags) {
-            size_t idx = (visibleBlock*)currentBlock->acessPointer - visibleBlockData.data();
-            if (idx != visibleBlockData.size() - 1) {
-                visibleBlockData.back().origin->acessPointer = &visibleBlockData[idx];
-                visibleBlockData[idx] = std::move(visibleBlockData.back());
+            glm::ivec2 chunkVector = getblockChunkVector(x, y);
+            Chunk* referedChunk = chunkVector == glm::ivec2(0) ? this : chunkRegistry::getChunk(this->position + chunkVector); 
+
+            size_t idx = (visibleBlock*)currentBlock->acessPointer - referedChunk->visibleBlockData.data();
+            if (idx != referedChunk->visibleBlockData.size() - 1) {
+                referedChunk->visibleBlockData.back().origin->acessPointer = &referedChunk->visibleBlockData[idx];
+                referedChunk->visibleBlockData[idx] = std::move(referedChunk->visibleBlockData.back());
             }
-            visibleBlockData.pop_back();
+            referedChunk->visibleBlockData.pop_back();
             currentBlock->acessPointer = nullptr;
         }
     }
@@ -407,14 +425,19 @@ namespace world {
         }
     }
 
-    
-    inline void Chunk::updateIntermediateData(const unsigned char x, const unsigned char y, const unsigned short& z, const bool ignoreBadCoord = true) {
-        if (!isBlock(x, y, z)) {
-            if (ignoreBadCoord) { return; }
-            else { throw std::invalid_argument("ChunkUpdate: Cannot update non-existant block."); }
-                    
-            // ToDo: finsish this function
-        }
+    inline void Chunk::updateBlockIntermediateData(const short x, const short y, const short& z, const bool ignoreBadCoord = true) {
+
+        if (x >= CHUNK_WIDTH || y >= CHUNK_WIDTH || z >= CHUNK_HEIGHT) { return; }
+
+        updateBlockMeshFlags(x, y, z); // current
+
+        updateBlockMeshFlags(x, y + 1, z); // forward
+        updateBlockMeshFlags(x, y - 1, z); // backwards
+        updateBlockMeshFlags(x, y, z + 1); // up
+        updateBlockMeshFlags(x, y, z - 1); // down
+        updateBlockMeshFlags(x - 1, y, z); // left
+        updateBlockMeshFlags(x + 1, y, z); // right
+
     }
 
     // stitches the blocks in the current chunk into a single large mesh

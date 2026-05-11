@@ -22,13 +22,6 @@ namespace physics {
 
     class physicsObject {
     private: 
-        inline glm::ivec2 getChunkPos() { 
-            return glm::ivec2(
-                static_cast<int>(std::floor(position.x / (float)CHUNK_WIDTH)),
-                static_cast<int>(std::floor(position.y / (float)CHUNK_WIDTH))
-            );
-        }
-        
         inline glm::vec3 getFeetPos() { 
             return position - glm::vec3(0.0f, 0.0f, coliderDimensions.y / 2.0f); 
         }
@@ -193,21 +186,25 @@ namespace physics {
                             float overlapY = 0.0f;
                             float overlapZ = 0.0f;
                             
-                            if (position.x < blockMin.x + halfExtents.x) {
+                            float blockCenterX = (blockMin.x + blockMax.x) / 2.0f;
+                            float blockCenterY = (blockMin.y + blockMax.y) / 2.0f;
+                            float blockCenterZ = (blockMin.z + blockMax.z) / 2.0f;
+
+                            if (position.x < blockCenterX) {
                                 overlapX = blockMin.x - maxPos.x;
-                            } else if (position.x > blockMax.x - halfExtents.x) {
+                            } else {
                                 overlapX = blockMax.x - minPos.x;
                             }
                             
-                            if (position.y < blockMin.y + halfExtents.y) {
+                            if (position.y < blockCenterY) {
                                 overlapY = blockMin.y - maxPos.y;
-                            } else if (position.y > blockMax.y - halfExtents.y) {
+                            } else {
                                 overlapY = blockMax.y - minPos.y;
                             }
                             
-                            if (position.z < blockMin.z + halfExtents.z) {
+                            if (position.z < blockCenterZ) {
                                 overlapZ = blockMin.z - maxPos.z;
-                            } else if (position.z > blockMax.z - halfExtents.z) {
+                            } else {
                                 overlapZ = blockMax.z - minPos.z;
                             }
                             

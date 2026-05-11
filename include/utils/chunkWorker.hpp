@@ -1,6 +1,7 @@
 #ifndef CHUNK_WORKER_HEADER
 #define CHUNK_WORKER_HEADER
 
+#include "glm/fwd.hpp"
 #include <globals.hpp>
 #include <chunkGeneration.hpp>
 #include <chunk.hpp>
@@ -10,30 +11,25 @@
 #include <vector>
 #include <algorithm>
 #include <condition_variable>
-#include <cmath>
 
 #include <thread>
 
 namespace world {
     class chunkWorker {
-        private:
-            enum workType: bool {
+        public:
+            enum workType: unsigned char {
                 addChunk,
-                removeChunk
-            };
-
-            struct task {
-                workType type;
-                glm::ivec2 chunkPosition;
-
-                task(workType type, glm::ivec2 chunkPosition): type(type), chunkPosition(chunkPosition) {}
+                removeChunk,
+                updateChunk
             };
             
-        public:
             static inline std::mutex workerMutex;
             static inline std::condition_variable cv;
-            static inline std::deque<task> addQueue = {};     // Lower priority: chunk generation
-            static inline std::deque<task> removeQueue = {}; // Higher priority: chunk removal
+
+            static inline std::deque<glm::ivec2> addQueue = {};     // Lower priority: chunk generation
+            static inline std::deque<glm::ivec2> removeQueue = {}; // Higher priority: chunk removal
+            static inline std::deque<glm::ivec2> updateQueue = {};
+
             static inline std::deque<world::Chunk*> readyToUpload = {};
             static inline bool shouldTerminate = false;
             static inline glm::fvec3 currentPlayerPosition;
@@ -46,17 +42,14 @@ namespace world {
 
                     // Check the relevant queue for duplicates only — no cross-queue search needed
                     // since an add and remove for the same chunk are meaningfully different ops.
-                    auto& queue = (type == workType::removeChunk) ? removeQueue : addQueue;
+                    std::deque<glm::ivec2>* queue;
+                    if (type == workType::addChunk) { queue = &addQueue; }
+                    else if (type == workType::removeChunk) { queue = &removeQueue; }
+                    else if (type == workType::updateChunk) { queue = &updateQueue; }
 
-                    if (std::find_if(
-                            queue.begin(),
-                            queue.end(),
-                            [&chunkPosition](const task& t) { return t.chunkPosition == chunkPosition; }
-                        ) != queue.end()) {
-                        return false;
-                    }
+                    if (std::find(queue->begin(), queue->end(), chunkPosition ) != queue->end()) { return false; }
 
-                    queue.emplace_back(type, chunkPosition);
+                    queue->emplace_back(chunkPosition);
                     cv.notify_one();
                     return true;
                 }
@@ -139,20 +132,27 @@ namespace world {
                         {
                             std::unique_lock<std::mutex> lock(workerMutex);
                             // Wake up if either queue has work
-                            cv.wait(lock, [] { return shouldTerminate || !removeQueue.empty() || !addQueue.empty(); });
+                            cv.wait(lock, [] { return shouldTerminate || !removeQueue.empty() || !addQueue.empty() || !updateQueue.empty(); });
                             if (shouldTerminate) { break; }
 
                             // Drain removes first — always prefer them to avoid buffer overflow
                             if (!removeQueue.empty()) {
                                 auto currentTask = removeQueue.front();
                                 removeQueue.pop_front();
-                                chunkPos = currentTask.chunkPosition;
-                                type = currentTask.type;
-                            } else {
+                                chunkPos = currentTask;
+                                type = workType::removeChunk;
+                            }
+                            else if (!updateQueue.empty()) {
+                                auto currentTask = updateQueue.front();
+                                updateQueue.pop_front();
+                                chunkPos = currentTask;
+                                type = workType::updateChunk;
+                            }
+                            else {
                                 auto currentTask = addQueue.front();
                                 addQueue.pop_front();
-                                chunkPos = currentTask.chunkPosition;
-                                type = currentTask.type;
+                                chunkPos = currentTask;
+                                type = workType::addChunk;
                             }
                         }
 
@@ -171,9 +171,7 @@ namespace world {
                                 
                                 if (chunkRegistry::exists({chunkPos.x, chunkPos.y - 1})) {
 
-                                    chunkRegistry::registryMutex.lock();
-                                    Chunk* neighbour = chunkRegistry::registry[{chunkPos.x, chunkPos.y - 1}];
-                                    chunkRegistry::registryMutex.unlock();
+                                    Chunk* neighbour = chunkRegistry::getChunk({chunkPos.x, chunkPos.y - 1});
 
                                     neighbour->regenerateSideIntermideateData(ChunkSides::front);
                                     neighbour->stitchMesh();
@@ -185,9 +183,7 @@ namespace world {
                                 }
                                 if (chunkRegistry::exists({chunkPos.x, chunkPos.y + 1})) {
 
-                                    chunkRegistry::registryMutex.lock();
-                                    Chunk* neighbour = chunkRegistry::registry[{chunkPos.x, chunkPos.y + 1}];
-                                    chunkRegistry::registryMutex.unlock();
+                                    Chunk* neighbour = chunkRegistry::getChunk({chunkPos.x, chunkPos.y + 1});
 
                                     neighbour->regenerateSideIntermideateData(ChunkSides::back);
                                     neighbour->stitchMesh();
@@ -199,9 +195,7 @@ namespace world {
                                 }
                                 if (chunkRegistry::exists({chunkPos.x + 1, chunkPos.y})) {
 
-                                    chunkRegistry::registryMutex.lock();
-                                    Chunk* neighbour = chunkRegistry::registry[{chunkPos.x + 1, chunkPos.y}];
-                                    chunkRegistry::registryMutex.unlock();
+                                    Chunk* neighbour = chunkRegistry::getChunk({chunkPos.x + 1, chunkPos.y});
 
                                     neighbour->regenerateSideIntermideateData(ChunkSides::left);
                                     neighbour->stitchMesh();
@@ -213,9 +207,7 @@ namespace world {
                                 }
                                 if (chunkRegistry::exists({chunkPos.x - 1, chunkPos.y})) {
 
-                                    chunkRegistry::registryMutex.lock();
-                                    Chunk* neighbour = chunkRegistry::registry[{chunkPos.x - 1, chunkPos.y}];
-                                    chunkRegistry::registryMutex.unlock();
+                                    Chunk* neighbour = chunkRegistry::getChunk({chunkPos.x - 1, chunkPos.y});
 
                                     neighbour->regenerateSideIntermideateData(ChunkSides::right);
                                     neighbour->stitchMesh();
@@ -234,6 +226,18 @@ namespace world {
                                     std::lock_guard<std::mutex> lock(workerMutex);
                                     readyToUpload.push_back(chunk);
                                 }
+                            }
+                        }
+                        else if (type == workType::updateChunk) {
+                            if (!chunkRegistry::exists(chunkPos)) { continue; }
+
+                            Chunk* chunk = chunkRegistry::getChunk(chunkPos);
+                            chunk->generateIntermediateData();
+                            chunk->stitchMesh();
+
+                            if (chunk->mesh && !chunk->mesh->empty()) {
+                                std::lock_guard<std::mutex> lock(workerMutex);
+                                readyToUpload.push_back(chunk);
                             }
                         }
                         else if (type == workType::removeChunk) { 

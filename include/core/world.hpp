@@ -1,8 +1,6 @@
 #ifndef CORE_WORLD_HEADER
 #define CORE_WORLD_HEADER
 
-#include <player.hpp>
-
 namespace WorldSettings {
     inline unsigned int seed = 0u;
 
@@ -20,7 +18,5 @@ namespace WorldSettings {
     // 1 = no blending, 2-3 = smooth transitions (3 is a good default).
     inline int blendCandidates = 3;
 };
-
-world::player* player = nullptr;
 
 #endif // CORE_WORLD_HEADER

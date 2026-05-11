@@ -2,15 +2,25 @@
 #define PLAYER_HEADER
 
 #include "GLFW/glfw3.h"
+
+#include "block.hpp"
+#include "chunk.hpp"
+#include "chunkWorker.hpp"
+
 #include "core.hpp"
 #include "glm/ext/vector_float3.hpp"
 #include "glm/geometric.hpp"
 #include "globals.hpp"
 
-#include <algorithm>
+#include <array>
+#include <cstdio>
 #include <render.hpp>
 #include <physics.hpp>
 #include <camera.hpp>
+
+#include <blockRayCast.hpp>
+
+#include <algorithm>
 
 namespace world {
     class player : public physics::physicsObject {
@@ -27,8 +37,10 @@ namespace world {
 
             float friction = 9.0f;            // Strong friction to stop sliding
 
+            float blockReach = 7.5f;
+
             player() {
-                position = glm::vec3(0.0f, 0.0f, 100.0f);
+                position = glm::vec3(0.5f, 0.5f, 100.0f);
                 velocity = glm::vec3(0.0f);
                 mass = 150.0f;
 
@@ -59,8 +71,46 @@ namespace world {
                 }
             }
 
+            // expects real-world coordinates
+            void handleBlockBreak(glm::ivec3 blockPos) {
+                if (blockPos.z >= CHUNK_HEIGHT) { return; }
+
+                glm::ivec2 chunkPos = getChunkPos(blockPos);
+                if (!chunkRegistry::exists(chunkPos)) { return; }
+
+                glm::ivec3 localBlockPos = { blockPos.x - chunkPos.x * CHUNK_WIDTH, blockPos.y - chunkPos.y * CHUNK_WIDTH, blockPos.z };
+
+                Chunk* chunk = chunkRegistry::getChunk(chunkPos);
+                Block& block = chunk->getBlock(localBlockPos);
+
+                if (block.acessPointer) {
+                    std::array<short, 3> posToSearch = {(short)localBlockPos.x, (short)localBlockPos.y, (short)localBlockPos.z}; 
+                    auto iterator = std::find_if(
+                        chunk->visibleBlockData.begin(),
+                        chunk->visibleBlockData.end(),
+                        [&](const visibleBlock& entry){ return entry.localPosition == posToSearch; }
+                    );
+
+                    if (iterator != chunk->visibleBlockData.end()) {
+                        chunk->visibleBlockData.erase(iterator);
+                        block.acessPointer = nullptr;
+                    }
+                }
+
+                block.ID = 0u;
+                block.type = BlockType::air;
+                chunk->updateBlockIntermediateData(localBlockPos.x, localBlockPos.y, localBlockPos.z);
+                
+                if (localBlockPos.x == 0)               chunkWorker::assignWork(chunkPos + glm::ivec2(-1, 0), chunkWorker::workType::updateChunk);
+                if (localBlockPos.x == CHUNK_WIDTH - 1) chunkWorker::assignWork(chunkPos + glm::ivec2( 1, 0), chunkWorker::workType::updateChunk);
+                if (localBlockPos.y == 0)               chunkWorker::assignWork(chunkPos + glm::ivec2(0, -1), chunkWorker::workType::updateChunk);
+                if (localBlockPos.y == CHUNK_WIDTH - 1) chunkWorker::assignWork(chunkPos + glm::ivec2(0,  1), chunkWorker::workType::updateChunk);
+
+                chunkWorker::assignWork(chunkPos, chunkWorker::workType::updateChunk);
+            }
 
             void main() {
+                printf("player pos: %.0f %.0f %.0f\n", position.x, position.y, position.z);
                 playerCamera->handleInputs(mainWindow);
 
                 bool onGround = isOnGround();
@@ -83,6 +133,15 @@ namespace world {
                 if (glfwGetKey(mainWindow, GLFW_KEY_S) == GLFW_PRESS) inputDir -= forward;
                 if (glfwGetKey(mainWindow, GLFW_KEY_A) == GLFW_PRESS) inputDir -= right;
                 if (glfwGetKey(mainWindow, GLFW_KEY_D) == GLFW_PRESS) inputDir += right;
+
+                // ToDo: extend this into a survival MC mechanic
+                static bool leftWasHeld = false;
+                bool leftPressed = glfwGetMouseButton(mainWindow, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+                if (leftPressed && !leftWasHeld && playerCamera->cameraControlled) {
+                    auto block = getBlockInSight(playerCamera->position, playerCamera->orientation, blockReach);
+                    if (block.has_value()) { handleBlockBreak(block.value()); }
+                }
+                leftWasHeld = leftPressed;
 
                 bool hasInput = glm::length(inputDir) > 0.0f;
                 if (hasInput)
@@ -128,7 +187,7 @@ namespace world {
                 // --- Simulate & sync camera ---
                 this->simulate();
 
-                playerCamera->position = position + glm::vec3(0.0f, 0.0f, coliderDimensions.y * 0.5f);
+                playerCamera->position = position + glm::vec3(0.0f, 0.0f, coliderDimensions.y * 0.35f);
 
                 if (currentCamera == playerCamera) {
                     for (const auto& shader : Shaders) { playerCamera->updateProjection(shader.second); }

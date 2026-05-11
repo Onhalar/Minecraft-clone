@@ -3,9 +3,8 @@
 
 #include <render.hpp>
 
-#include "mesh.hpp"
+#include <mesh.hpp>
 #include <map>
-#include <core.hpp>
 
 
 namespace world {
@@ -108,6 +107,7 @@ namespace world {
 
 
     inline std::vector<BlockRef> blockPalette = {
+        BlockRef(),
         BlockRef({0, 2, 1, 1, 1, 1}),
         BlockRef({2, 2, 2, 2, 2, 2}),
         BlockRef({3, 3, 3, 3, 3, 3}),
@@ -116,11 +116,12 @@ namespace world {
     };
 
     inline std::map<std::string, blockID> blockIDlookup = {
-        {"grass", 0u},
-        {"dirt", 1u},
-        {"stone", 2u},
-        {"snow", 3u},
-        {"sand", 4u}
+        {"air", 0u},
+        {"grass", 1u},
+        {"dirt", 2u},
+        {"stone", 3u},
+        {"snow", 4u},
+        {"sand", 5u}
     };
 }
 

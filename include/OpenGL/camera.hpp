@@ -26,7 +26,7 @@ class Camera {
         glm::vec3 orientation = glm::vec3(0.0f, 1.0f, 0.0f);
         const glm::vec3 UP = glm::vec3(0.0f, 0.0f, 1.0f);
 
-        float yaw = 90.0f;
+        float yaw = 0.0f;
         float pitch = 0.0f;
 
         float sensitivity = 175.0f;
@@ -37,6 +37,8 @@ class Camera {
         int width, height;
 
         float FOVdeg = 85.0f;
+
+        bool cameraControlled = false;
 
         Camera(int width, int height, glm::vec3 position) {
             this->position = position;
@@ -56,24 +58,25 @@ class Camera {
 
     public:
         void handleInputs(GLFWwindow* window) {
-            static bool controlCamera = false;
 
-            if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) && !controlCamera) {
-                controlCamera = true;
+            printf("Camera pos: %.0f %.0f %.0f\n", position.x, position.y, position.z);
+
+            if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) && !cameraControlled) {
+                cameraControlled = true;
                 glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
                 glfwSetCursorPos(window, (width / 2), (height / 2));
             }
-            else if (glfwGetKey(window, GLFW_KEY_ESCAPE) && controlCamera) {
-                controlCamera = false;
+            else if (glfwGetKey(window, GLFW_KEY_ESCAPE) && cameraControlled) {
+                cameraControlled = false;
                 glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
             }
 
-            if (controlCamera) {
+            if (cameraControlled) {
                 double mouseX, mouseY;
                 glfwGetCursorPos(window, &mouseX, &mouseY);
 
                 float rotX = sensitivity * (float)(mouseY - (height / 2)) / height;
-                float rotY = sensitivity * (float)(mouseX - (width / 2)) / width;
+                float rotY = sensitivity * (float)(mouseX - (width / 2)) / height; // ← height, not width
 
                 pitch -= rotX;
                 yaw   -= rotY;

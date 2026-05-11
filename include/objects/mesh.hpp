@@ -115,115 +115,97 @@ namespace mesh {
             public:                
                 inline static meshData front = {
                     {
-                        0.5f,  0.5f, -0.5f,  // 0 - front bottom right
-                        -0.5f,  0.5f, -0.5f,  // 1 - front bottom left
-                        -0.5f,  0.5f,  0.5f,  // 2 - front top left
-                        0.5f,  0.5f,  0.5f   // 3 - front top right
+                        1.0f, 1.0f, 0.0f,  // 0 - front bottom right
+                        0.0f, 1.0f, 0.0f,  // 1 - front bottom left
+                        0.0f, 1.0f, 1.0f,  // 2 - front top left
+                        1.0f, 1.0f, 1.0f   // 3 - front top right
                     },
+                    { 0, 1, 2, 2, 3, 0 },
                     {
-                        0, 1, 2,
-                        2, 3, 0
-                    },
-                    {
-                        0.0f, 0.0f,  // 0 - bottom right
-                        1.0f, 0.0f,  // 1 - bottom left
-                        1.0f, 1.0f,  // 2 - top left
-                        0.0f, 1.0f   // 3 - top right
+                        0.0f, 0.0f,
+                        1.0f, 0.0f,
+                        1.0f, 1.0f,
+                        0.0f, 1.0f
                     }
                 };
 
                 inline static meshData back = {
                     {
-                        -0.5f, -0.5f, -0.5f,  // 0 - back bottom left
-                        0.5f, -0.5f, -0.5f,  // 1 - back bottom right
-                        0.5f, -0.5f,  0.5f,  // 2 - back top right
-                        -0.5f, -0.5f,  0.5f   // 3 - back top left
+                        0.0f, 0.0f, 0.0f,  // 0 - back bottom left
+                        1.0f, 0.0f, 0.0f,  // 1 - back bottom right
+                        1.0f, 0.0f, 1.0f,  // 2 - back top right
+                        0.0f, 0.0f, 1.0f   // 3 - back top left
                     },
+                    { 0, 1, 2, 2, 3, 0 },
                     {
-                        0, 1, 2,
-                        2, 3, 0
-                    },
-                    {
-                        0.0f, 0.0f,  // 0 - bottom left
-                        1.0f, 0.0f,  // 1 - bottom right
-                        1.0f, 1.0f,  // 2 - top right
-                        0.0f, 1.0f   // 3 - top left
+                        0.0f, 0.0f,
+                        1.0f, 0.0f,
+                        1.0f, 1.0f,
+                        0.0f, 1.0f
                     }
                 };
-                
+
                 inline static meshData left = {
                     {
-                        -0.5f,  0.5f, -0.5f,  // 0 - left bottom back
-                        -0.5f, -0.5f, -0.5f,  // 1 - left bottom front
-                        -0.5f, -0.5f,  0.5f,  // 2 - left top front
-                        -0.5f,  0.5f,  0.5f   // 3 - left top back
+                        0.0f, 1.0f, 0.0f,  // 0 - left bottom back
+                        0.0f, 0.0f, 0.0f,  // 1 - left bottom front
+                        0.0f, 0.0f, 1.0f,  // 2 - left top front
+                        0.0f, 1.0f, 1.0f   // 3 - left top back
                     },
+                    { 0, 1, 2, 2, 3, 0 },
                     {
-                        0, 1, 2,
-                        2, 3, 0
-                    },
-                    {
-                        0.0f, 0.0f,  // 0 - bottom back
-                        1.0f, 0.0f,  // 1 - bottom front
-                        1.0f, 1.0f,  // 2 - top front
-                        0.0f, 1.0f   // 3 - top back
+                        0.0f, 0.0f,
+                        1.0f, 0.0f,
+                        1.0f, 1.0f,
+                        0.0f, 1.0f
                     }
                 };
-                
+
                 inline static meshData right = {
                     {
-                        0.5f, -0.5f, -0.5f,  // 0 - right bottom front
-                        0.5f,  0.5f, -0.5f,  // 1 - right bottom back
-                        0.5f,  0.5f,  0.5f,  // 2 - right top back
-                        0.5f, -0.5f,  0.5f   // 3 - right top front
+                        1.0f, 0.0f, 0.0f,  // 0 - right bottom front
+                        1.0f, 1.0f, 0.0f,  // 1 - right bottom back
+                        1.0f, 1.0f, 1.0f,  // 2 - right top back
+                        1.0f, 0.0f, 1.0f   // 3 - right top front
                     },
+                    { 0, 1, 2, 2, 3, 0 },
                     {
-                        0, 1, 2,
-                        2, 3, 0
-                    },
-                    {
-                        0.0f, 0.0f,  // 0 - bottom front
-                        1.0f, 0.0f,  // 1 - bottom back
-                        1.0f, 1.0f,  // 2 - top back
-                        0.0f, 1.0f   // 3 - top front
+                        0.0f, 0.0f,
+                        1.0f, 0.0f,
+                        1.0f, 1.0f,
+                        0.0f, 1.0f
                     }
                 };
-                
+
                 inline static meshData top = {
                     {
-                        -0.5f, -0.5f,  0.5f,  // 0 - top front left
-                        0.5f, -0.5f,  0.5f,  // 1 - top front right
-                        0.5f,  0.5f,  0.5f,  // 2 - top back right
-                        -0.5f,  0.5f,  0.5f   // 3 - top back left
+                        0.0f, 0.0f, 1.0f,  // 0 - top front left
+                        1.0f, 0.0f, 1.0f,  // 1 - top front right
+                        1.0f, 1.0f, 1.0f,  // 2 - top back right
+                        0.0f, 1.0f, 1.0f   // 3 - top back left
                     },
+                    { 0, 1, 2, 2, 3, 0 },
                     {
-                        0, 1, 2,
-                        2, 3, 0
-                    },
-                    {
-                        0.0f, 0.0f,  // 0 - front left
-                        1.0f, 0.0f,  // 1 - front right
-                        1.0f, 1.0f,  // 2 - back right
-                        0.0f, 1.0f   // 3 - back left
+                        0.0f, 0.0f,
+                        1.0f, 0.0f,
+                        1.0f, 1.0f,
+                        0.0f, 1.0f
                     }
                 };
-                
+
                 inline static meshData bottom = {
                     {
-                        -0.5f,  0.5f, -0.5f,  // 0 - bottom back left
-                        0.5f,  0.5f, -0.5f,  // 1 - bottom back right
-                        0.5f, -0.5f, -0.5f,  // 2 - bottom front right
-                        -0.5f, -0.5f, -0.5f   // 3 - bottom front left
+                        0.0f, 1.0f, 0.0f,  // 0 - bottom back left
+                        1.0f, 1.0f, 0.0f,  // 1 - bottom back right
+                        1.0f, 0.0f, 0.0f,  // 2 - bottom front right
+                        0.0f, 0.0f, 0.0f   // 3 - bottom front left
                     },
+                    { 0, 1, 2, 2, 3, 0 },
                     {
-                        0, 1, 2,
-                        2, 3, 0
-                    },
-                    {
-                        0.0f, 0.0f,  // 0 - back left
-                        1.0f, 0.0f,  // 1 - back right
-                        1.0f, 1.0f,  // 2 - front right
-                        0.0f, 1.0f   // 3 - front left
+                        0.0f, 0.0f,
+                        1.0f, 0.0f,
+                        1.0f, 1.0f,
+                        0.0f, 1.0f
                     }
                 };
         };
