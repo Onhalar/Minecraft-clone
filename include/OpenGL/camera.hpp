@@ -4,7 +4,6 @@
 // for delta time
 #include <globals.hpp>
 
-#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -58,8 +57,6 @@ class Camera {
 
     public:
         void handleInputs(GLFWwindow* window) {
-
-            printf("Camera pos: %.0f %.0f %.0f\n", position.x, position.y, position.z);
 
             if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) && !cameraControlled) {
                 cameraControlled = true;

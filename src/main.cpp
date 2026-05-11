@@ -17,7 +17,6 @@
 #include <thread>
 #include <filesystem>
 
-#include "camera.hpp"
 #include "chunk.hpp"
 #include "player.hpp"
 #include "setup/setupRender.cpp"
@@ -34,6 +33,8 @@ void setupRenderer();
 void setupTextureSheet();
 void setupShaderMetrices(Shader* shader);
 void setupShaders();
+
+inline world::player* player = nullptr;
 
 int main(int argc, char **argv) {
     // attemps to extract current file location from call args

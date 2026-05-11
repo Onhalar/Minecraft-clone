@@ -1,8 +1,6 @@
 #ifndef PLAYER_HEADER
 #define PLAYER_HEADER
 
-#include "GLFW/glfw3.h"
-
 #include "block.hpp"
 #include "chunk.hpp"
 #include "chunkWorker.hpp"
@@ -13,7 +11,6 @@
 #include "globals.hpp"
 
 #include <array>
-#include <cstdio>
 #include <render.hpp>
 #include <physics.hpp>
 #include <camera.hpp>
@@ -110,7 +107,7 @@ namespace world {
             }
 
             void main() {
-                printf("player pos: %.0f %.0f %.0f\n", position.x, position.y, position.z);
+                bool wasCameraFocused = playerCamera->cameraControlled; 
                 playerCamera->handleInputs(mainWindow);
 
                 bool onGround = isOnGround();
@@ -137,7 +134,7 @@ namespace world {
                 // ToDo: extend this into a survival MC mechanic
                 static bool leftWasHeld = false;
                 bool leftPressed = glfwGetMouseButton(mainWindow, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
-                if (leftPressed && !leftWasHeld && playerCamera->cameraControlled) {
+                if (leftPressed && !leftWasHeld && playerCamera->cameraControlled && wasCameraFocused) {
                     auto block = getBlockInSight(playerCamera->position, playerCamera->orientation, blockReach);
                     if (block.has_value()) { handleBlockBreak(block.value()); }
                 }
