@@ -260,7 +260,7 @@ namespace world {
 
     // ---==[PRIVATE DEFINITIONS]==---
 
-    inline bool Chunk::isBlock(const short x, const short y, unsigned const short z, const bool checkSurroundingChunks = false) {
+    inline bool Chunk::isBlock(const short x, const short y, unsigned const short z, const bool checkSurroundingChunks = true) {
         if (z >= CHUNK_HEIGHT) { return false; }
         glm::ivec2 chunkVector = getblockChunkVector(x, y);
 
