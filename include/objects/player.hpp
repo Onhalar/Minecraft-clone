@@ -98,12 +98,12 @@ namespace world {
                 block.type = BlockType::air;
                 chunk->updateBlockIntermediateData(localBlockPos.x, localBlockPos.y, localBlockPos.z);
                 
-                if (localBlockPos.x == 0)               chunkWorker::assignWork(chunkPos + glm::ivec2(-1, 0), chunkWorker::workType::updateChunk);
-                if (localBlockPos.x == CHUNK_WIDTH - 1) chunkWorker::assignWork(chunkPos + glm::ivec2( 1, 0), chunkWorker::workType::updateChunk);
-                if (localBlockPos.y == 0)               chunkWorker::assignWork(chunkPos + glm::ivec2(0, -1), chunkWorker::workType::updateChunk);
-                if (localBlockPos.y == CHUNK_WIDTH - 1) chunkWorker::assignWork(chunkPos + glm::ivec2(0,  1), chunkWorker::workType::updateChunk);
+                if (localBlockPos.x == 0)               chunkWorker::assignWork(chunkPos + glm::ivec2(-1, 0), chunkWorker::workType::remeshChunk);
+                if (localBlockPos.x == CHUNK_WIDTH - 1) chunkWorker::assignWork(chunkPos + glm::ivec2( 1, 0), chunkWorker::workType::remeshChunk);
+                if (localBlockPos.y == 0)               chunkWorker::assignWork(chunkPos + glm::ivec2(0, -1), chunkWorker::workType::remeshChunk);
+                if (localBlockPos.y == CHUNK_WIDTH - 1) chunkWorker::assignWork(chunkPos + glm::ivec2(0,  1), chunkWorker::workType::remeshChunk);
 
-                chunkWorker::assignWork(chunkPos, chunkWorker::workType::updateChunk);
+                chunkWorker::assignWork(chunkPos, chunkWorker::workType::remeshChunk);
             }
 
             void main() {

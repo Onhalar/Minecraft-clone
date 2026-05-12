@@ -339,58 +339,62 @@ namespace world {
     inline void Chunk::updateBlockMeshFlags(const short x, const short y, const short z, const unsigned char ignoreFlags = 0u, const unsigned char forceFlags = 0u) {
         if (z >= CHUNK_HEIGHT) { return; }
 
-        Block* currentBlock = &getBlock(x, y, z);
-        
-        if (currentBlock->type == BlockType::air) { return; }
-        
+        glm::ivec2 chunkVector = getblockChunkVector(x, y);
+        Chunk* chunk = (chunkVector == glm::ivec2(0)) ? this : chunkRegistry::getChunk(this->position + chunkVector);
+        if (!chunk) { return; }
+
+        short localX = x - chunkVector.x * CHUNK_WIDTH;
+        short localY = y - chunkVector.y * CHUNK_WIDTH;
+        std::array<short, 3> localPos = { localX, localY, z };
+
+        Block* block = &chunk->getBlock(localX, localY, z);
+        if (block->type == BlockType::air) { return; }
+
         // above
         if (!(ignoreFlags & blockRenderFlag::RENDER_TOP) || (forceFlags & blockRenderFlag::RENDER_TOP)) {
-            if (!isBlock(x, y, z + 1) || (forceFlags & blockRenderFlag::RENDER_TOP)) { updateFlag(currentBlock, blockRenderFlag::RENDER_TOP, {x, y, z}); }
-            else { updateFlag(currentBlock, blockRenderFlag::RENDER_TOP, {x, y, z}, true); }
+            if (!chunk->isBlock(localX, localY, z + 1) || (forceFlags & blockRenderFlag::RENDER_TOP)) { chunk->updateFlag(block, blockRenderFlag::RENDER_TOP, localPos); }
+            else { chunk->updateFlag(block, blockRenderFlag::RENDER_TOP, localPos, true); }
         }
 
         // below
         if (!(ignoreFlags & blockRenderFlag::RENDER_BOTTOM) || (forceFlags & blockRenderFlag::RENDER_BOTTOM)) {
-            if (!isBlock(x, y, z - 1) || (forceFlags & blockRenderFlag::RENDER_BOTTOM)) { updateFlag(currentBlock, blockRenderFlag::RENDER_BOTTOM, {x, y, z}); }
-            else { updateFlag(currentBlock, blockRenderFlag::RENDER_BOTTOM, {x, y, z}, true); }
+            if (!chunk->isBlock(localX, localY, z - 1) || (forceFlags & blockRenderFlag::RENDER_BOTTOM)) { chunk->updateFlag(block, blockRenderFlag::RENDER_BOTTOM, localPos); }
+            else { chunk->updateFlag(block, blockRenderFlag::RENDER_BOTTOM, localPos, true); }
         }
 
         // front
         if (!(ignoreFlags & blockRenderFlag::RENDER_FRONT) || (forceFlags & blockRenderFlag::RENDER_FRONT)) {
-            if (!isBlock(x, y + 1, z) || (forceFlags & blockRenderFlag::RENDER_FRONT)) { updateFlag(currentBlock, blockRenderFlag::RENDER_FRONT, {x, y, z}); }
-            else { updateFlag(currentBlock, blockRenderFlag::RENDER_FRONT, {x, y, z}, true); }
+            if (!chunk->isBlock(localX, localY + 1, z) || (forceFlags & blockRenderFlag::RENDER_FRONT)) { chunk->updateFlag(block, blockRenderFlag::RENDER_FRONT, localPos); }
+            else { chunk->updateFlag(block, blockRenderFlag::RENDER_FRONT, localPos, true); }
         }
 
         // back
         if (!(ignoreFlags & blockRenderFlag::RENDER_BACK) || (forceFlags & blockRenderFlag::RENDER_BACK)) {
-            if (!isBlock(x, y - 1, z) || (forceFlags & blockRenderFlag::RENDER_BACK)) { updateFlag(currentBlock, blockRenderFlag::RENDER_BACK, {x, y, z}); }
-            else { updateFlag(currentBlock, blockRenderFlag::RENDER_BACK, {x, y, z}, true); }
+            if (!chunk->isBlock(localX, localY - 1, z) || (forceFlags & blockRenderFlag::RENDER_BACK)) { chunk->updateFlag(block, blockRenderFlag::RENDER_BACK, localPos); }
+            else { chunk->updateFlag(block, blockRenderFlag::RENDER_BACK, localPos, true); }
         }
 
         // left
         if (!(ignoreFlags & blockRenderFlag::RENDER_LEFT) || (forceFlags & blockRenderFlag::RENDER_LEFT)) {
-            if (!isBlock(x - 1, y, z) || (forceFlags & blockRenderFlag::RENDER_LEFT)) { updateFlag(currentBlock, blockRenderFlag::RENDER_LEFT, {x, y, z}); }
-            else { updateFlag(currentBlock, blockRenderFlag::RENDER_LEFT, {x, y, z}, true); }
+            if (!chunk->isBlock(localX - 1, localY, z) || (forceFlags & blockRenderFlag::RENDER_LEFT)) { chunk->updateFlag(block, blockRenderFlag::RENDER_LEFT, localPos); }
+            else { chunk->updateFlag(block, blockRenderFlag::RENDER_LEFT, localPos, true); }
         }
 
         // right
         if (!(ignoreFlags & blockRenderFlag::RENDER_RIGHT) || (forceFlags & blockRenderFlag::RENDER_RIGHT)) {
-            if (!isBlock(x + 1, y, z) || (forceFlags & blockRenderFlag::RENDER_RIGHT)) { updateFlag(currentBlock, blockRenderFlag::RENDER_RIGHT, {x, y, z}); }
-            else { updateFlag(currentBlock, blockRenderFlag::RENDER_RIGHT, {x, y, z}, true); }
+            if (!chunk->isBlock(localX + 1, localY, z) || (forceFlags & blockRenderFlag::RENDER_RIGHT)) { chunk->updateFlag(block, blockRenderFlag::RENDER_RIGHT, localPos); }
+            else { chunk->updateFlag(block, blockRenderFlag::RENDER_RIGHT, localPos, true); }
         }
 
-
-        if ((visibleBlock*)currentBlock->acessPointer && !((visibleBlock*)currentBlock->acessPointer)->flags) {
-            glm::ivec2 chunkVector = getblockChunkVector(x, y);
-            Chunk* referedChunk = chunkVector == glm::ivec2(0) ? this : chunkRegistry::getChunk(this->position + chunkVector); 
-
-            size_t idx = (visibleBlock*)currentBlock->acessPointer - referedChunk->visibleBlockData.data();
-            if (idx != referedChunk->visibleBlockData.size() - 1) {
-                referedChunk->visibleBlockData.back().origin->acessPointer = &referedChunk->visibleBlockData[idx];
-                referedChunk->visibleBlockData[idx] = std::move(referedChunk->visibleBlockData.back());
+        // remove from visibleBlockData if all flags cleared
+        if (block->acessPointer && !((visibleBlock*)block->acessPointer)->flags) {
+            size_t idx = (visibleBlock*)block->acessPointer - chunk->visibleBlockData.data();
+            if (idx != chunk->visibleBlockData.size() - 1) {
+                chunk->visibleBlockData.back().origin->acessPointer = &chunk->visibleBlockData[idx];
+                chunk->visibleBlockData[idx] = std::move(chunk->visibleBlockData.back());
             }
-            referedChunk->visibleBlockData.pop_back();
-            currentBlock->acessPointer = nullptr;
+            chunk->visibleBlockData.pop_back();
+            block->acessPointer = nullptr;
         }
     }
 

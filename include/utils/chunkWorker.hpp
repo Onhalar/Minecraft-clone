@@ -20,7 +20,8 @@ namespace world {
             enum workType: unsigned char {
                 addChunk,
                 removeChunk,
-                updateChunk
+                updateChunk,
+                remeshChunk
             };
             
             static inline std::mutex workerMutex;
@@ -29,6 +30,7 @@ namespace world {
             static inline std::deque<glm::ivec2> addQueue = {};     // Lower priority: chunk generation
             static inline std::deque<glm::ivec2> removeQueue = {}; // Higher priority: chunk removal
             static inline std::deque<glm::ivec2> updateQueue = {};
+            static inline std::deque<glm::ivec2> remeshQueue = {};
 
             static inline std::deque<world::Chunk*> readyToUpload = {};
             static inline bool shouldTerminate = false;
@@ -46,6 +48,7 @@ namespace world {
                     if (type == workType::addChunk) { queue = &addQueue; }
                     else if (type == workType::removeChunk) { queue = &removeQueue; }
                     else if (type == workType::updateChunk) { queue = &updateQueue; }
+                    else if (type == workType::remeshChunk) { queue = &remeshQueue; }
 
                     if (std::find(queue->begin(), queue->end(), chunkPosition ) != queue->end()) { return false; }
 
@@ -132,7 +135,7 @@ namespace world {
                         {
                             std::unique_lock<std::mutex> lock(workerMutex);
                             // Wake up if either queue has work
-                            cv.wait(lock, [] { return shouldTerminate || !removeQueue.empty() || !addQueue.empty() || !updateQueue.empty(); });
+                            cv.wait(lock, [] { return shouldTerminate || !removeQueue.empty() || !addQueue.empty() || !updateQueue.empty() || !remeshQueue.empty(); });
                             if (shouldTerminate) { break; }
 
                             // Drain removes first — always prefer them to avoid buffer overflow
@@ -142,13 +145,19 @@ namespace world {
                                 chunkPos = currentTask;
                                 type = workType::removeChunk;
                             }
+                            else if (!remeshQueue.empty()) {
+                                auto currentTask = remeshQueue.front();
+                                remeshQueue.pop_front();
+                                chunkPos = currentTask;
+                                type = workType::remeshChunk;
+                            }
                             else if (!updateQueue.empty()) {
                                 auto currentTask = updateQueue.front();
                                 updateQueue.pop_front();
                                 chunkPos = currentTask;
                                 type = workType::updateChunk;
                             }
-                            else {
+                            else if (!addQueue.empty()) {
                                 auto currentTask = addQueue.front();
                                 addQueue.pop_front();
                                 chunkPos = currentTask;
@@ -228,11 +237,12 @@ namespace world {
                                 }
                             }
                         }
-                        else if (type == workType::updateChunk) {
+
+                        else if (type == workType::updateChunk || type == workType::remeshChunk) {
                             if (!chunkRegistry::exists(chunkPos)) { continue; }
 
                             Chunk* chunk = chunkRegistry::getChunk(chunkPos);
-                            chunk->generateIntermediateData();
+                            if (type == workType::updateChunk) { chunk->generateIntermediateData(); }
                             chunk->stitchMesh();
 
                             if (chunk->mesh && !chunk->mesh->empty()) {
@@ -240,6 +250,7 @@ namespace world {
                                 readyToUpload.push_back(chunk);
                             }
                         }
+
                         else if (type == workType::removeChunk) { 
                             Chunk* chunkToRemove = nullptr;
                             
