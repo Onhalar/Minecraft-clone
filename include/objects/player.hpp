@@ -96,6 +96,8 @@ namespace world {
 
                 block.ID = 0u;
                 block.type = BlockType::air;
+                chunk->bakeChunk();
+
                 chunk->updateBlockIntermediateData(localBlockPos.x, localBlockPos.y, localBlockPos.z);
                 
                 if (localBlockPos.x == 0)               chunkWorker::assignWork(chunkPos + glm::ivec2(-1, 0), chunkWorker::workType::remeshChunk);
