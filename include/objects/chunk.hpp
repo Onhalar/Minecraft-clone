@@ -108,7 +108,7 @@ namespace world {
             void addSideToMesh(const unsigned char& sideFlag, mesh::meshData* side, const std::array<short, 3>& localPosition);
 
             // updates the intermediate data of a single block; Use ignore flags to avoid unecesery checks or force flags which overpower ignore flags
-            void updateBlockMeshFlags(const short x, const short y, const short z, const unsigned char ignoreFlags, const unsigned char forceFlags);
+            void updateBlockMeshFlags(const short x, const short y, const unsigned short z, const unsigned char ignoreFlags, const unsigned char forceFlags);
 
         public:
             glm::ivec2 position = {0u, 0u}; 
@@ -260,22 +260,18 @@ namespace world {
 
     // ---==[PRIVATE DEFINITIONS]==---
 
-    inline bool Chunk::isBlock(const short x, const short y, const unsigned short z, const bool checkSurroundingChunks = true) {
+    inline bool Chunk::isBlock(const short x, const short y, unsigned const short z, const bool checkSurroundingChunks = false) {
         if (z >= CHUNK_HEIGHT) { return false; }
-        glm::ivec2 blockChunkVector = getblockChunkVector(x, y);
+        glm::ivec2 chunkVector = getblockChunkVector(x, y);
 
-        if (blockChunkVector != glm::ivec2(0)) {
-            if (!checkSurroundingChunks) { return false; }
+        if (checkSurroundingChunks && chunkVector != glm::ivec2(0)) {
+            if (!chunkRegistry::exists(this->position + chunkVector)) { return false; }
+            Chunk* chunk = chunkRegistry::getChunk(this->position + chunkVector);
 
-            glm::ivec2 neighbourChunkPos = position + blockChunkVector;
-
-            std::lock_guard<std::mutex> lock(chunkRegistry::registryMutex);
-            auto it = chunkRegistry::registry.find(neighbourChunkPos);
-            if (it == chunkRegistry::registry.end() || !it->second) { return false; }
-
-            char altX = x - blockChunkVector.x * CHUNK_WIDTH;
-            char altY = y - blockChunkVector.y * CHUNK_WIDTH;
-            return it->second->getBlock(altX, altY, z).type != BlockType::air;
+            glm::ivec3 localPos = { x - chunkVector.x * CHUNK_WIDTH, y - chunkVector.y * CHUNK_WIDTH, z };
+            if (localPos.x < 0 || localPos.x >= CHUNK_WIDTH || localPos.y < 0 || localPos.y >= CHUNK_WIDTH) { return false; }
+            
+            return chunk->getBlock(localPos).type != BlockType::air;
         }
 
         return getBlock(x, y, z).type != BlockType::air;
@@ -336,7 +332,7 @@ namespace world {
     }
 
 
-    inline void Chunk::updateBlockMeshFlags(const short x, const short y, const short z, const unsigned char ignoreFlags = 0u, const unsigned char forceFlags = 0u) {
+    inline void Chunk::updateBlockMeshFlags(const short x, const short y, const unsigned short z, const unsigned char ignoreFlags = 0u, const unsigned char forceFlags = 0u) {
         if (z >= CHUNK_HEIGHT) { return; }
 
         glm::ivec2 chunkVector = getblockChunkVector(x, y);
