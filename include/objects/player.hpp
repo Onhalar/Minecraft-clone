@@ -19,6 +19,8 @@
 #include <blockRayCast.hpp>
 
 #include <algorithm>
+#include <unordered_map>
+#include <chrono>
 
 namespace world {
     class player : public physics::physicsObject {
@@ -58,7 +60,7 @@ namespace world {
                 bool      hasHorizontal;
             };
 
-            InputVectors getInputDirections() const {
+            InputVectors getInputDirections() {
                 glm::vec3 forward = glm::normalize(glm::vec3(playerCamera->orientation.x, playerCamera->orientation.y, 0.0f));
                 glm::vec3 right   = glm::normalize(glm::cross(forward, UP));
 
@@ -78,6 +80,15 @@ namespace world {
                     if (glfwGetKey(mainWindow, GLFW_KEY_SPACE)        == GLFW_PRESS) vertical += 1.0f;
                     if (glfwGetKey(mainWindow, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) vertical -= 1.0f;
                 }
+
+                // enabling and disabling flight
+                static bool wasSpacePressed = false;
+                bool isSpacePressed = glfwGetKey(mainWindow, GLFW_KEY_SPACE) == GLFW_PRESS;
+                
+                if (isSpacePressed && !wasSpacePressed && abilities.flying) {
+                    if (isDoublePressed(GLFW_KEY_SPACE)) { flight = !flight; }
+                }
+                wasSpacePressed = isSpacePressed;
 
                 return { dir, vertical, hasHorizontal };
             }
@@ -191,48 +202,6 @@ namespace world {
                 syncCamera();
             }
 
-        public:
-            Camera* playerCamera;
-
-            float baseSpeed      = 35.0f;  // Faster acceleration to reach max speed
-            float jumpBurstSpeed = 8.0f;   // Jump gives ~1.25 blocks height
-            float sprintModifier = 1.65f;
-            float friction       = 9.0f;   // Strong friction to stop sliding
-
-            // Flight-specific tuning
-            float flightSpeed          = 50.0f;  // Higher than walk so flight feels free
-            float flightDrag           = 0.95f;  // Applied to all three axes while flying
-            float flightSprintModifier = 2.5f;
-
-            float blockReach = 7.5f;
-
-            // ---------------------------------------------------------------
-            // main — per-frame update entry point.
-            // ---------------------------------------------------------------
-            void main() {
-                bool wasCameraFocused = playerCamera->cameraControlled;
-                playerCamera->handleInputs(mainWindow);
-
-                // Resolve per-frame state
-                onGround = isOnGround();
-                sprint   = glfwGetKey(mainWindow, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
-
-                static bool flightEnabled = abilities.flying;
-                if (!abilities.flying || (onGround && abilities.walking)) { flightEnabled = false; }
-                flight = flightEnabled;
-
-                handleBlockInteraction(wasCameraFocused);
-
-                InputVectors input = getInputDirections();
-
-                if (flight) {
-                    handleFlight(input);
-                } else {
-                    applyGravity();
-                    handleWalking(input);
-                }
-            }
-
             // ---------------------------------------------------------------
             // handleBlockBreak — expects real-world coordinates.
             // ---------------------------------------------------------------
@@ -279,8 +248,65 @@ namespace world {
 
                 chunkWorker::assignWork(chunkPos, chunkWorker::workType::remeshChunk);
             }
-            
 
+            bool isDoublePressed(unsigned int glfwKey) {
+                static const std::chrono::milliseconds doublePressWait(250);
+                static std::unordered_map<unsigned int, std::chrono::steady_clock::time_point> registry = {};
+
+                auto iter = registry.find(glfwKey);
+                if (iter != registry.end()) {
+                    auto registerTime = registry[glfwKey];
+
+                    registry.erase(iter);
+                    if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - registerTime) <= doublePressWait) { return true; }
+                    else { return false; }
+                }
+                else {
+                    registry[glfwKey] = std::chrono::steady_clock::now();
+                    return false;
+                }
+            }
+
+        public:
+            Camera* playerCamera;
+
+            float baseSpeed      = 35.0f;  // Faster acceleration to reach max speed
+            float jumpBurstSpeed = 8.0f;   // Jump gives ~1.25 blocks height
+            float sprintModifier = 1.65f;
+            float friction       = 9.0f;   // Strong friction to stop sliding
+
+            // Flight-specific tuning
+            float flightSpeed          = 50.0f;  // Higher than walk so flight feels free
+            float flightDrag           = 0.95f;  // Applied to all three axes while flying
+            float flightSprintModifier = 2.5f;
+
+            float blockReach = 7.5f;
+
+            // ---------------------------------------------------------------
+            // main — per-frame update entry point.
+            // ---------------------------------------------------------------
+            void main() {
+                bool wasCameraFocused = playerCamera->cameraControlled;
+                playerCamera->handleInputs(mainWindow);
+
+                // Resolve per-frame state
+                onGround = isOnGround();
+                sprint   = glfwGetKey(mainWindow, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS;
+
+                if (!abilities.flying || (onGround && abilities.walking)) { flight = false; }
+
+                handleBlockInteraction(wasCameraFocused);
+
+                InputVectors input = getInputDirections();
+
+                if (flight) {
+                    handleFlight(input);
+                } else {
+                    applyGravity();
+                    handleWalking(input);
+                }
+            }
+            
             player() {
                 position = glm::vec3(0.5f, 0.5f, 100.0f);
                 velocity = glm::vec3(0.0f);
