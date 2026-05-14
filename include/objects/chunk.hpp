@@ -265,7 +265,7 @@ namespace world {
         glm::ivec2 chunkVector = getblockChunkVector(x, y);
 
         if (checkSurroundingChunks && chunkVector != glm::ivec2(0)) {
-            if (!chunkRegistry::exists(this->position + chunkVector)) { return false; }
+            if (!chunkRegistry::exists(this->position + chunkVector)) { return true; } // returns true to cull neighbour-facing walls so that it' consistant with deleting the chunk and not remeshing its surroundings
             Chunk* chunk = chunkRegistry::getChunk(this->position + chunkVector);
 
             glm::ivec3 localPos = { x - chunkVector.x * CHUNK_WIDTH, y - chunkVector.y * CHUNK_WIDTH, z };
