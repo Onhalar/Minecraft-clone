@@ -159,7 +159,10 @@ void mainLoop() {
     TinyUInt frameCount = 0;
     std::chrono::nanoseconds frameDuration(1'000'000'000 / targetFrameRate); // 1,000,000 μs / 60 = 16666 μs = 16.666 m
 
-    world::chunkWorker::workerThread = std::thread(world::chunkWorker::workerThreadFunc);
+    world::chunkWorker::workerThreads.reserve(workerThreadPool);
+    for (unsigned int i = 0; i < workerThreadPool; ++i) {
+        world::chunkWorker::workerThreads.emplace_back(world::chunkWorker::workerThreadFunc);
+    }
 
     while (!glfwWindowShouldClose(mainWindow)) {
         auto frameStart = std::chrono::steady_clock::now(); // Use std::chrono
@@ -170,10 +173,10 @@ void mainLoop() {
         if (!isMinimized) { // Custom Actions
 
             // CHUNKS
-            if (frameCount % 5 == 0) { // check for new chunks every 10 frames (adjust as needed)
+            if (frameCount % 5 == 0) {
                 world::chunkWorker::checkForFarChunks(player->position);
             }
-            else if (frameCount % 5 == 2) { // check for far chunks every 10 frames, offset from new chunk check (adjust as needed)
+            else if (frameCount % 5 == 2) {
                 world::chunkWorker::checkForNewChunks(player->position);
             }
 
@@ -229,8 +232,8 @@ void cleanup() {
         world::chunkWorker::clearAssignedWork();
     }
 
-    if (world::chunkWorker::workerThread.joinable()) { 
-        world::chunkWorker::workerThread.join(); 
+    for (std::thread& worker : world::chunkWorker::workerThreads) {
+        if (worker.joinable()) { worker.join(); }
     }
     
     if (mainTextureAtlas) { delete mainTextureAtlas; mainTextureAtlas = nullptr; }

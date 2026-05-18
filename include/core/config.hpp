@@ -30,6 +30,8 @@ inline int targetFrameRate = 60;
 inline float staticDelayFraction = 0.65f;
 inline std::chrono::nanoseconds spinDelay(375);
 
-inline int renderDistance = 16; // in chunks
+inline unsigned int renderDistance = 32; // in chunks
+inline unsigned int workerThreadPool = 6;
+inline unsigned int maxUploadsPerFrame = 4; // how many meshes will be uploaded in one frame
 
 #endif // MAIN_CONFIG_HEADER
